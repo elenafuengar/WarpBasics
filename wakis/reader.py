@@ -9,6 +9,7 @@ the supported EM solvers
 '''
 
 import os
+import glob
 import json as js
 import pickle as pk
 
@@ -16,13 +17,12 @@ import pickle as pk
 import numpy as np
 import h5py 
 
-from wakis.logger import get_logger
+from wakis.logger import _log
 
 #globals
 _cwd = os.getcwd() + '/'
-_verbose = 2    #1: Debug, 2: Info, 3: Warning, 4: Error, 5: Critical
-_log = get_logger(level=_verbose)
 
+i = 0
 class Reader():
     '''Mixin class to encapsulate input reading methods
     '''
@@ -64,7 +64,8 @@ class Reader():
         '''
 
         hf = h5py.File(path+filename, 'r')
-        _log.info('Reading the h5 file: ' + path + filename + ' ...')
+        _log.info('Reading h5 file' )
+        _log.debug('Path to h5 file' + path + filename )
         _log.debug('Size of the file: ' + str(round((os.path.getsize(path+filename)/10**9),2))+' Gb')
 
         # get number of datasets
@@ -190,3 +191,14 @@ class Reader():
         #set field info
         _log.debug('Ez field is stored in a matrix with shape '+str(Ez.shape)+' in '+str(int(nsteps))+' datasets')
         _log.info('Finished scanning files - hdf5 file'+filename+'succesfully generated')
+
+        data = {}
+
+        #Save x,y,z,t in dictionary
+        data['x'] = x
+        data['y'] = y 
+        data['z'] = z
+        data['t'] = np.array(t)
+
+        with open(path+'cst.inp', 'wb') as fp:
+            pk.dump(data, fp)

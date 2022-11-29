@@ -51,6 +51,7 @@ class Wakis(Inputs, Solver, Plot):
         self.xsource, self.ysource = None, None
         self.xtest, self.ytest = None, None
         self.chargedist = None
+        self.rho = None
 
         #field
         self.Ez = None
@@ -68,6 +69,10 @@ class Wakis(Inputs, Solver, Plot):
         self.Z = None
         self.Zx, self.Zy = None, None
         self.lambdaf = None
+
+        #plotting 
+        self._figsize = (6,4)
+        self._dpi = 150
 
         for key, val in kwargs.items():
             setattr(self, key, val)
@@ -92,18 +97,26 @@ class Wakis(Inputs, Solver, Plot):
         return cls(**d)
 
     @classmethod
-    def from_file(cls, file =  'wakis.json'):
+    def from_file(cls, file='wakis.out'):
         '''
         Set attributes from output file 'wakis.json'
         '''
-        try:
+        exts = ['pk', 'pickle', 'out']
+        ext = file.split('.')[-1]
+
+        if ext == 'js' or ext == 'json':
             with open(file, 'r') as f:
                 d = {k: np.array(v) for k, v in js.loads(f.read()).items()}
-
             return cls(**d)
 
-        except:
-            self.log.warning(f'"{f}" file not found')
+        elif ext in exts:
+            with open(file, 'rb') as f:
+                d = pk.load(f)
+            return cls(**d)
+
+        else:
+            self.log.warning(f'"{f}" fileformat not supported')
+           
 
     def solve(self):
         '''
@@ -112,10 +125,6 @@ class Wakis(Inputs, Solver, Plot):
         calculation time
         '''
         t0 = time.time()
-
-        print('---------------------')
-        print('|   Running WAKIS   |')
-        print('---------------------')
 
         # Obtain longitudinal Wake potential
         WP_3d, i0, j0 = Solver.calc_long_WP(self)
@@ -134,7 +143,7 @@ class Wakis(Inputs, Solver, Plot):
         totalt = t1-t0
         self.log.info('Calculation terminated in %ds' %totalt)
 
-    def save(self, ext = 'json'):
+    def save(self, ext = 'out'):
         '''
         Save results in 'wakis' file. 
         Two extensions supported: 'json' and 'pickle'
@@ -146,23 +155,30 @@ class Wakis(Inputs, Solver, Plot):
             Default is 'json'
         '''
         d = self.__dict__
+        keys = ['s', 'WP', 'WPx', 'WPy', 'f', 'Z', 'Zx', 'Zy', \
+                'lambdas', 'xsource', 'ysource', 'xtest', 'ytest', \
+                'q', 'sigmaz', 't', 'x', 'y', 'z', \
+                'unit_m', 'unit_f', 'unit_t', 'path' ]
+
+        exts = ['pk', 'pickle', 'out']
 
         if ext == 'json':
-            j = json.dumps({k: v.tolist() for k, v in d.items()})
+            j = json.dumps({k: d[k].tolist() for k in keys})
             with open('wakis.' + ext, 'w') as f:
                 json.dump(j, f)
             self.log.info('"wakis.' + ext +'" file succesfully generated') 
 
-        elif ext == 'pk' or ext == 'pickle':
+        elif ext in exts:
+            p = {k: d[k] for k in keys}
             with open('wakis.' + ext, 'wb') as f:
-                pk.dump(d, f)
+                pk.dump(p, f)
             self.log.info('"wakis.' + ext +'" file succesfully generated') 
         
         else: 
             self.log.warning(f'Extension ".{ext}" not supported')
 
 
-    def plot(self): 
+    def plot(self): #[TODO] add options to plot Re, Im or all
         ''' 
         Plot wakis results in different figures
         that are returned as dictionaries
@@ -176,11 +192,11 @@ class Wakis(Inputs, Solver, Plot):
         figs = {}
         axs = {}
 
-        fig['1'], axs['1'] = Plot.plot_long_WP()
-        fig['2'], axs['2'] = Plot.plot_long_Z(plot='all')
-        fig['3'], axs['3'] = Plot.plot_trans_WP()
-        fig['4'], axs['4'] = Plot.plot_trans_Z(plot='all')
-        fig['5'], axs['5'] = Plot.plot_charge_dist()
+        figs['1'], axs['1'] = Plot.plot_long_WP(self)
+        figs['2'], axs['2'] = Plot.plot_long_Z(self, plot='all')
+        figs['3'], axs['3'] = Plot.plot_trans_WP(self)
+        figs['4'], axs['4'] = Plot.plot_trans_Z(self, plot='abs')
+        figs['5'], axs['5'] = Plot.plot_charge_dist(self)
 
         return figs, axs
 
@@ -196,18 +212,19 @@ class Wakis(Inputs, Solver, Plot):
 
         fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
         fig.set_size_inches(16, 10)
-        axs = {}
 
         plt.text(x=0.5, y=0.96, s="WAKIS wake solver result", 
                 fontsize='x-large', fontweight='bold', ha="center", transform=fig.transFigure)
         plt.text(x=0.5, y=0.93, s= '(x,y) source = ('+str(round(self.xsource/1e3,1))+','+str(round(self.ysource/1e3,1))+') mm | test = ('+str(round(self.xtest/1e3,1))+','+str(round(self.ytest/1e3,1))+') mm', 
                 fontsize='large', ha="center", transform=fig.transFigure)  
 
-        fig, axs['1'] = Plot.plot_long_WP(fig = fig, ax = ax1, chargedist = True)
-        fig, axs['2'] = Plot.plot_long_Z(fig = fig, ax = ax1,plot='all')
-        fig, axs['3'] = Plot.plot_trans_WP(fig = fig, ax = ax1)
-        fig, axs['4'] = Plot.plot_trans_Z(fig = fig, ax = ax1,plot='all')
+        f, ax1 = Plot.plot_long_WP(self, fig = fig, ax = ax1, chargedist = True)
+        f, ax2 = Plot.plot_long_Z(self, fig = fig, ax = ax2, plot='all')
+        f, ax3 = Plot.plot_trans_WP(self, fig = fig, ax = ax3)
+        fig, ax4 = Plot.plot_trans_Z(self, fig = fig, ax = ax4,plot='all')
+
+        plt.show()
 
         if save: fig.savefig(self.path+'wakis.png')
 
-        return fig, axs
+        return fig, ((ax1, ax2), (ax3, ax4))

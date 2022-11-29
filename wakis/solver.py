@@ -50,8 +50,8 @@ class Solver():
         s = np.linspace(-ti*c, 0, ns_neg) #sets the values for negative s
         s = np.append(s, np.linspace(0, WL,  ns_pos))
 
-        self.log.info('Max simulated time = '+str(round(t[-1]*1.0e9,4))+' ns')
-        self.log.info('Wakelength = '+str(WL/unit)+' mm')
+        self.log.debug('Max simulated time = '+str(round(self.t[-1]*1.0e9,4))+' ns')
+        self.log.debug('Wakelength = '+str(round(WL/self.unit_m,0))+' mm')
 
         # Initialize 
         Ezi = np.zeros((nt,nt))     #interpolated Ez field
@@ -63,7 +63,7 @@ class Solver():
         #choose different subvolume width [TODO]
         i0, j0 = 1, 1    #center of the subvolume in No.cells for x, y
 
-        self.log.info('Calculating longitudinal wake potential WP...')
+        self.log.info('Calculating longitudinal wake potential WP')
         for i in range(-i0,i0+1,1):  
             for j in range(-j0,j0+1,1):
 
@@ -78,7 +78,7 @@ class Solver():
                         ts[k,n] = (zi[k]+s[n])/c-zmin/c-self.t[0]+ti
 
                         if ts[k,n]>0.0:
-                            it = int(ts[k,n]/dt)-1                      #find index for t
+                            it = int(ts[k,n]/dt)-1            #find index for t
                             WP[n] = WP[n]+(Ezi[k, it])*dzi    #compute integral
 
                 WP = WP/(self.q*1e12)     # [V/pC]
@@ -108,7 +108,7 @@ class Solver():
         int_WP = np.zeros_like(WP_3d)
 
         # Obtain the transverse wake potential 
-        for n in range(len(s)):
+        for n in range(len(self.s)):
             for i in range(-i0,i0+1,1):
                 for j in range(-j0,j0+1,1):
                     # Perform the integral
@@ -139,7 +139,7 @@ class Solver():
 
         # Obtain DFTs
         lambdafft = np.fft.fft(self.lambdas*c, n=N)
-        WPfft = np.fft.fft(WP*1e12, n=N)
+        WPfft = np.fft.fft(self.WP*1e12, n=N)
         ffft=np.fft.fftfreq(len(WPfft), ds/c)
 
         # Mask invalid frequencies
@@ -181,7 +181,7 @@ class Solver():
         self.Zx = 1j * WPxf / lambdaf
 
         # Vertical impedance Zy⊥(w)
-        WPyfft = np.fft.fft(WPy*1e12, n=N)
+        WPyfft = np.fft.fft(self.WPy*1e12, n=N)
         WPyf = WPyfft[mask]*ds
 
         self.Zy = 1j * WPyf / lambdaf

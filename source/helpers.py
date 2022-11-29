@@ -24,6 +24,7 @@ import matplotlib.pyplot as plt
 import time
 import sys
 import os
+import glob
 from scipy.constants import c 
 import scipy.interpolate as spi 
 import pickle as pk
@@ -41,7 +42,7 @@ def read_cst_1d(path, file):
     '''
     Read CST plot data saved in ASCII .txt format
     '''
-    entry=file.split('.')[0]
+    vary=file.split('.')[0]
     X = []
     Y = []
 
@@ -50,16 +51,16 @@ def read_cst_1d(path, file):
         for line in f:
             i+=1
             columns = line.split()
-
-            if i>1 and len(columns)>1:
-
+            if i==1: 
+                varx = columns[0][0].lower()
+            if i>2 and len(columns)>1:
                 X.append(float(columns[0]))
                 Y.append(float(columns[1]))
 
     X=np.array(X)
     Y=np.array(Y)
 
-    return {'X':X , 'Y': Y}
+    return {varx: X , vary: Y}
 
 def read_cst_3d(path):
     '''
@@ -187,12 +188,12 @@ def read_cst_3d(path):
     print('[INFO] Ez field is stored in a matrix with shape '+str(Ez.shape)+' in '+str(int(nsteps))+' datasets')
     print('[! OUT] hdf5 file'+hf_name+'succesfully generated')
 
-    data = []
+    data = {}
 
     #Save x,y,z,t in dictionary
-    data['x'] = x,
-    data['y'] = y, 
-    data['z'] = z,
+    data['x'] = x
+    data['y'] = y 
+    data['z'] = z
     data['t'] = np.array(t)
 
     with open(path+'cst.inp', 'wb') as fp:
@@ -235,13 +236,13 @@ def read_Ez(path, filename='Ez.h5'):
 
     return hf, dataset
 
-def read_pbci(path, file, units=1e-3):
+def read_pbci(path, file):
 
     case=file.split('.')[1]
     data = {}
 
     if case == 'potential':
-        s, Lambda, WPx, WPy, WPz = [], [], [], [], []
+        s, lambdas, WPx, WPy, WPz = [], [], [], [], []
         i=0
         with open(path+file) as file:
             for line in file:
@@ -251,19 +252,19 @@ def read_pbci(path, file, units=1e-3):
                 if i>1 and len(columns)>1:
 
                     s.append(float(columns[0]))
-                    Lambda.append(float(columns[1]))
+                    lambdas.append(float(columns[1]))
                     WPx.append(float(columns[2]))
                     WPy.append(float(columns[3]))
                     WPz.append(float(columns[4]))
 
-        data['s'] = np.array(s)*units #[m]
-        data['Lambda'] = np.array(Lambda)/units #[1/m]
+        data['s'] = np.array(s) #[xm]
+        data['lambda'] = np.array(lambdas) #[1/xm]
         data['WPx'] = np.array(WPx)  #[V/pC]
         data['WPy'] = np.array(WPy)  #[V/pC]
         data['WPz'] = np.array(WPz)  #[V/pC]
 
     if case == 'impedance':
-        f, Lambdaf, Zx, Zy, Zz = [], [], [], [], []
+        f, lambdaf, Zx, Zy, Zz = [], [], [], [], []
         i=0
         with open(path+file) as file:
             for line in file:
@@ -273,13 +274,13 @@ def read_pbci(path, file, units=1e-3):
                 if i>1 and len(columns)>1:
 
                     f.append(float(columns[0]))
-                    Lambdaf.append(float(columns[1]))
+                    lambdaf.append(float(columns[1]))
                     Zx.append(float(columns[2])+1j*float(columns[3]))
                     Zy.append(float(columns[4])+1j*float(columns[5]))
                     Zz.append(float(columns[6])+1j*float(columns[7]))
 
-        data['f'] = np.array(f)*1e-9  #[Hz]
-        data['Lambdaf'] = np.array(Lambdaf)
+        data['f'] = np.array(f)  #[XHz]
+        data['lambdaf'] = np.array(lambdaf)
         data['Zx'] = np.array(Zx)   #[Ohm]
         data['Zy'] = np.array(Zy)   #[Ohm]
         data['Zz'] = np.array(Zz)   #[Ohm]
@@ -473,6 +474,98 @@ def plot_pbci(path):
     plt.show()
     fig.savefig(path+'Zxy.png', bbox_inches='tight')
 
+
+def triang_implicit(fun, BC=None, bbox=(-3,3)):
+    ''' 
+    Triangulates the surface of an implicit function f(x,y,z) = 0
+    
+    Parameters:
+    -----------
+    - fun: implicit function (plot where fn==0)
+    - BC: class containing the implicit function
+    - bbox: the x,y,and z limits of plotting box
+
+    Returns:
+    --------
+    - F: matrix with shape(32,32,32) that only has values 
+         where the implicit function is close to 0 and 
+         otherwise in float('nan') 
+
+    Requirements:
+    ------------
+    scikit-image
+    ''' 
+    from skimage import measure #
+
+    # Define box limits
+    bmin, bmax = bbox
+
+    # Define the mesh 
+    xl = np.linspace(bmin, bmax, 32)
+    X, Y, Z = np.meshgrid(xl, xl, xl)
+
+    #Define the field
+    if BC == None:
+        F = fun(X, Z, Y)
+
+    else:
+        F = fun(X, Z, Y, BC)
+
+    # Obtain vertex and faces with the marching cubes algorithm
+    verts, faces, normals, values = measure.marching_cubes(F, 0, spacing=[np.diff(xl)[0]]*3 )
+    verts -= bmax
+
+    # Plot using trisurf
+    fig = plt.figure(1, figsize=(6,4), dpi=200, tight_layout=True)
+    ax = fig.add_subplot(111, projection='3d')
+    ax.plot_trisurf(verts[:, 0], verts[:, 1], faces, verts[:, 2], color='b')
+
+    # Set plot properties
+    ax.set_zlim3d(bmin,bmax)
+    ax.set_xlim3d(bmin,bmax)
+    ax.set_ylim3d(bmin,bmax)
+    ax.grid(True, color='gray', linestyle=':')
+    ax.set(title='Geometry defined by the implicit function', 
+            xlabel='z [m]',
+            ylabel='x [m]',
+            zlabel='y [m]'
+            )
+    plt.show()
+
+    return F
+
+def implicit_function(x, y, z, BC): 
+    ''' 
+    Evaluates the expression parsed to the WarpX picmi.EmbeddedBoundary class.
+    - x, y, z: variables to be defined by the plot function 
+    - BC: custom class containing the implicit function and 
+         parameters in a string + user defined kw arguments
+    '''
+    # read the class
+    implicit_class=BC.implicit_function.split(';')
+    params=BC.user_defined_kw
+
+    args=implicit_class[0:-1]      #assignements
+    implicitf=implicit_class[-1]   #implicit function
+    vals=np.zeros((len(args), len(x), len(y), len(z)))
+
+    # introduce kw parameters [NOT wOrKING]
+    i=0
+    for i in range(len(args)):
+        for key in params.keys():  
+            if key in args[i]:
+                args[i]=args[i].replace(key, 'params[\''+key+'\']')
+                
+
+    # get the arguments value
+    for i in range(len(args)):
+        arg=args[i].split('=')
+        vals[i, :, :, :]=eval(arg[1])
+        implicitf=implicitf.replace(arg[0].strip(), 'vals['+str(i)+', :, :, :]')
+
+    implicitf=implicitf.replace('max', 'np.maximum')
+    
+    return eval(implicitf) 
 
 #--------------------------------------------------------------
 

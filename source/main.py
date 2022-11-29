@@ -51,11 +51,11 @@ print('---------------------')
 #---------------------------#
 
 # define EM solver: 'warpx' or 'cst'
-case = 'warpx'  
+case = 'cst'  
 
 if case == 'cst':
 
-    path = '/mnt/c/Users/elefu/Documents/CERN/dev/Scripts/CST/data/reswall/'
+    path = '../examples/cst/reswall/'
     # set unit conversion [*m] to [m]
     unit = 1e-3 
 
@@ -76,13 +76,12 @@ if case == 'cst':
 
     t = data.get('t')               #simulated time [s]
     z = data.get('z')*unit          #z axis values  [m]      
-    z0 = data.get('z0')*unit        #full domain length (+pmls) [m]
-    x=data.get('x')*unit            #x axis values  [m]    
-    y=data.get('y')*unit            #y axis values  [m]   
+    x = data.get('x')*unit            #x axis values  [m]    
+    y = data.get('y')*unit            #y axis values  [m]   
 
     # get charge dist [C/m]
     d = read_cst_1d(path, 'lambda.txt')
-    charge_dist = np.interp(z, d['X']*unit, d['Y']) 
+    charge_dist = np.interp(z, d['d']*unit, d['lambda']) 
 
     # Read Ez 3d data [V/m]
     hf, dataset = read_Ez(path)
@@ -131,9 +130,9 @@ t0 = time.time()
 # Aux variables
 ## t
 nt = len(t)
-dt = t[-1]/(nt-1)
+dt = t[1]
 ## z
-if z0 is None: z0 = z
+if data.get('z0') is None: z0 = z
 nz = len(z)
 dz = z[2]-z[1]
 zmax = max(z)
@@ -324,39 +323,39 @@ with open(path + 'wakis.out', 'wb') as handle:
 # WPz
 fig = plt.figure(1, figsize=(8,5), dpi=150, tight_layout=True)
 ax=fig.gca()
-ax.plot(s/unit, WP, lw=1.2, c='orange', label = 'WPz(s) Wakis')
+ax.plot(s/unit, WP, lw=1.5, c='darkorange', label = 'WPz(s) Wakis')
 ax.plot(s/unit, lambdas*max(WP)/max(lambdas), c='r', label= '$\lambda$(s)')
 
 if case == 'cst':
-    d = read_cst('WP.txt', path)
-    ax.plot(d['X'], d['Y'], lw=1, c='k', ls='--', label='WPz(s) CST')
+    d = read_cst_1d(path, 'WP.txt')
+    ax.plot(d['s'], d['WP'], lw=1, c='k', ls='--', label='WPz(s) CST')
 
 ax.set(title='Longitudinal Wake potential $W_{||}$(s)',
         xlabel='s [mm]',
         ylabel='$W_{||}$(s) [V/pC]',
         ylim=(min(WP)*1.2, max(WP)*1.2) )
 ax.legend(loc='upper right')
-ax.grid(True, color='gray', linewidth=0.2)
+ax.grid(True, color='gray', linestyle=':')
 plt.show()
 fig.savefig(path+'WPz.png', bbox_inches='tight')
 
 # Zz
 fig = plt.figure(2, figsize=(8,5), dpi=150, tight_layout=True)
 ax=fig.gca()
-ax.plot(f*1e-9, abs(Z), lw=1.2, c='b', label = 'abs Z(w) Wakis')
+ax.plot(f*1e-9, abs(Z), lw=1.4, c='b', label = 'abs Z(w) Wakis')
 ax.plot(f*1e-9, np.real(Z), lw=1.2, c='r', ls='--', label = 'Re Z(w) Wakis')
 ax.plot(f*1e-9, np.imag(Z), lw=1.2, c='g', ls='--', label = 'Im Z(w) Wakis')
 
 if case == 'cst':
-    d = read_cst('Z.txt', path)
-    ax.plot(d['X'], d['Y'], lw=1, c='k', ls='--', label='abs Z(w) CST')
+    d = read_cst_1d(path, 'Z.txt')
+    ax.plot(d['f'], d['Z'], lw=1, c='k', ls='--', label='abs Z(w) CST')
 
 ax.set( title='Longitudinal impedance Z||(w)',
         xlabel='f [GHz]',
         ylabel='Z||(w) [$\Omega$]',   
         xlim=(0.,np.max(f)*1e-9)    )
 ax.legend(loc='upper left')
-ax.grid(True, color='gray', linewidth=0.2)
+ax.grid(True, color='gray', linestyle=':')
 plt.show()
 fig.savefig(path+'Zz.png', bbox_inches='tight')
 
@@ -370,7 +369,7 @@ ax.set(title='Transverse Wake potential W⊥(s) \n (x,y) source = ('+str(round(x
         ylabel='$W_{⊥}$ [V/pC]',
         xlim=(np.min(s/unit), np.max(s/unit)), )
 ax.legend(loc='best')
-ax.grid(True, color='gray', linewidth=0.2)
+ax.grid(True, color='gray', linestyle=':')
 plt.show()
 fig.savefig(path+'WPxy.png', bbox_inches='tight')
 
@@ -378,11 +377,11 @@ fig.savefig(path+'WPxy.png', bbox_inches='tight')
 fig = plt.figure(3, figsize=(8,5), dpi=150, tight_layout=True)
 ax=fig.gca()
 
-ax.plot(f*1e-9, abs(Zx), lw=1.2, c='g', label = 'abs Zx(w) Wakis')
+ax.plot(f*1e-9, abs(Zx), lw=1.5, c='g', label = 'abs Zx(w) Wakis')
 ax.plot(f*1e-9, np.real(Zx), lw=1, c='g', ls=':', label = 'Re Zx(w) Wakis')
 ax.plot(f*1e-9, np.imag(Zx), lw=1, c='g', ls='--', label = 'Im Zx(w) Wakis')
 
-ax.plot(f*1e-9, abs(Zy), lw=1.2, c='magenta', label = 'abs Zx(w) Wakis')
+ax.plot(f*1e-9, abs(Zy), lw=1.5, c='magenta', label = 'abs Zx(w) Wakis')
 ax.plot(f*1e-9, np.real(Zy), lw=1, c='magenta', ls=':', label = 'Re Zy(w) Wakis')
 ax.plot(f*1e-9, np.imag(Zy), lw=1, c='magenta', ls='--', label = 'Im Zy(w) Wakis')
 
@@ -391,6 +390,6 @@ ax.set(title='Transverse impedance Z⊥(w) \n (x,y) source = ('+str(round(xsourc
         ylabel='Z⊥(w) [$\Omega$]',   
         xlim=(0.,np.max(f)*1e-9)   )
 ax.legend(loc='best')
-ax.grid(True, color='gray', linewidth=0.2)
+ax.grid(True, color='gray', linestyle=':')
 plt.show()
 fig.savefig(path+'Zxy.png', bbox_inches='tight')

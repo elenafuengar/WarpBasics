@@ -20,13 +20,11 @@ import pickle as pk
 import numpy as np
 import h5py 
 
-from wakis.logger import get_logger
+from wakis.logger import _log, _verbose
 from wakis.reader import Reader
 
 #globals
 _cwd = os.getcwd() + '/'
-_verbose = 2    #1: Debug, 2: Info, 3: Warning, 4: Error, 5: Critical
-_log = get_logger(level=_verbose)
 
 
 class Inputs(Reader):
@@ -107,36 +105,45 @@ class Inputs(Reader):
         def __init__(self, q = None, sigmaz = None, 
                      xsource = None, ysource = None, 
                      xtest = None, ytest = None, 
-                     chargedist = None):
+                     chargedist = None, rho = None):
 
-            self.q = None
-            self.sigmaz = None
-            self.xsource, self.ysource = None, None
-            self.xtest, self.ytest = None, None
-            self.chargedist = None
+            self.q = q
+            self.sigmaz = sigmaz
+            self.xsource, self.ysource = xsource, ysource
+            self.xtest, self.ytest = xtest, ytest
+            self.chargedist = chargedist
 
         @classmethod
-        def from_WarpX(cls, filename = 'warpx.json'):
+        def from_WarpX(cls, filename = 'warpx.out'):
 
             ext = filename.split('.')[-1]
-
+            exts = ['pk', 'pickle', 'inp', 'out']
+            
             if ext == 'js' or ext == 'json':
                 with open(filename, 'r') as f:
                     d = {k: np.array(v) for k, v in js.loads(f.read()).items()}
+
+                if isinstance(d['chargedist'], dict):
+                    dd=d['chargedist']
+                    d['chargedist'] = dd[list(dd)[1]]
 
                 return cls(q = d['q'], sigmaz = d['sigmaz'], 
                      xsource = d['xsource'], ysource = d['ysource'], 
                      xtest = d['xtest'], ytest = d['ytest'],
                      chargedist = d['chargedist'], rho = d['rho'])
 
-            elif ext == 'pk' or ext == 'pickle' or ext == 'inp':
+            elif ext in exts:
                 with open(filename, 'rb') as f:
                     d = pk.load(f)
+
+                if isinstance(d['chargedist'], dict):
+                    dd=d['chargedist']
+                    d['chargedist'] = dd[list(dd)[1]]
 
                 return cls(q = d['q'], sigmaz = d['sigmaz'], 
                      xsource = d['xsource'], ysource = d['ysource'], 
                      xtest = d['xtest'], ytest = d['ytest'], 
-                     chargedist = d['charge_dist'], rho = d['rho'])
+                     chargedist = d['chargedist'], rho = d['rho'])
 
             else:
                 _log.warning('warpx file extension not supported')
@@ -144,12 +151,13 @@ class Inputs(Reader):
         @classmethod
         def from_CST(cls, q = None, sigmaz = None, 
                      xsource = None, ysource = None, 
-                     xtest = None, ytest = None, 
+                     xtest = None, ytest = None,
                      chargedist = 'lambda.txt', rho = None, path=_cwd):
 
             if type(chargedist) is str:
                 try:
-                    chargedist = Reader.read_cst_1d(chargedist, path = path)
+                    d = Reader.read_cst_1d(chargedist, path = path)
+                    chargedist = d[list(d)[1]]
                 except:
                     _log.warning(f'Charge distribution file "{chargedist}" not found')
 
@@ -202,7 +210,7 @@ class Inputs(Reader):
             self.x0, self.y0, self.z0 = x0, y0, z0 #full simulation domain
 
         @classmethod
-        def from_CST(cls, folder = '3d', filename = 'Ez.h5'):
+        def from_CST(cls, folder = '3d', filename = 'Ez.h5', path = _cwd):
             '''
             Factory method for Field class that pre-processes the
             CST 3D field monitor output and saves it in .h5 file
@@ -227,34 +235,38 @@ class Inputs(Reader):
                 HDF5 file containing the Ez(x,y,z) matrix for every timestep
             '''
 
-            path = _cwd
-            path_3d = _cwd + folder + '/'
+            path_3d = path + folder + '/'
 
             #read CST field monitor output and turn it into .h5 file
-            Reader.read_cst_3d(path, path_3d, filename)
+            if not os.path.exists(path + path_3d + filename):
+                Reader.read_cst_3d(path, path_3d, filename)
 
             #get field content from h5 file
             hf, dataset = Reader.read_Ez(path, filename)
+            with open('cst.inp', 'rb') as f:
+                d = pk.load(f)
 
             #return class
-            return cls(Ez = {'hf' : hf, 'dataset' : dataset}, t=t, x=x, y=y, z=z)
+            return cls(Ez = {'hf' : hf, 'dataset' : dataset}, t=d['t'], 
+                       x=d['x'], y=d['y'], z=d['z'])
 
         @classmethod
-        def from_WarpX(cls, path = _cwd, warpx_filename = 'warpx.json', Ez_filename = 'Ez.h5'):
+        def from_WarpX(cls, path = _cwd, filename = 'warpx.out', Ez_filename = 'Ez.h5'):
             
             hf, dataset = Reader.read_Ez(path, Ez_filename)
-            ext = warpx_filename.split('.')[-1]
+            ext = filename.split('.')[-1]
+            exts = ['pk', 'pickle', 'inp', 'out']
 
             if ext == 'json':
-                with open(warpx_filename, 'r') as f:
+                with open(filename, 'r') as f:
                     d = {k: np.array(v) for k, v in js.loads(f.read()).items()}
 
                 return cls(Ez = {'hf' : hf, 'dataset' : dataset}, t=d['t'], 
                             x=d['x'], y=d['y'], z=d['z'], 
                             x0=d['x0'], y0=d['y0'], z0=['z0'])
 
-            elif ext == 'pk' or ext == 'pickle':
-                with open(warpx_filename, 'rb') as f:
+            elif ext in exts:
+                with open(filename, 'rb') as f:
                     d = pk.load(f)
 
                 return cls(Ez = {'hf' : hf, 'dataset' : dataset}, t=d['t'], 

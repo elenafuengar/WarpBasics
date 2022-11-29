@@ -11,7 +11,7 @@ each timestep
 '''
 
 import matplotlib.pyplot as plt
-import numpy as mp
+import numpy as np
 
 class Plot():
     '''Mixin class to encapsulate plotting methods
@@ -59,7 +59,7 @@ class Plot():
                         xlim=(min(self.z),max(self.z)),
                                 )
                 ax.legend(loc='best')
-                ax.grid(True, color='gray', linewidth=0.2)
+                ax.grid(True, color='gray', linestyle=':')
                 fig.canvas.draw()
                 fig.canvas.flush_events()
                 fig.clf()
@@ -107,9 +107,11 @@ class Plot():
         Plots the charge distribution λ(s) 
         '''
 
-        if fig or ax is None: 
-            fig = plt.figure(5, figsize=(8,5), dpi=150, tight_layout=True)
+        show = False
+        if fig is None or ax is None: 
+            fig = plt.figure(5, figsize=self._figsize, dpi=self._dpi, tight_layout=True)
             ax=fig.gca()
+            show = True
 
         ax.plot(self.s, self.lambdas, lw=1.2, color='red', label='$\lambda$(s)')
         ax.set(title='Charge distribution $\lambda$(s)',
@@ -118,19 +120,22 @@ class Plot():
                 xlim=(min(self.s), np.max(self.s))
                 )
         ax.legend(loc='best')
-        ax.grid(True, color='gray', linewidth=0.2)
-        plt.show()
+        ax.grid(True, color='gray', linestyle=':')
+         
+        if show: plt.show()
 
         return fig, ax
 
-    def plot_long_WP(self, fig = None, ax = None, chargedist = False):
+    def plot_long_WP(self, fig=None, ax=None, chargedist = False):
         '''
         Plots the longitudinal wake potential W||(s) 
         '''
 
-        if fig or ax is None: 
-            fig = plt.figure(1, figsize=(8,5), dpi=150, tight_layout=True)
+        show = False
+        if fig is None or ax is None:
+            fig = plt.figure(1, figsize=self._figsize, dpi=self._dpi, tight_layout=True)
             ax=fig.gca()
+            show = True
 
         if chargedist:
             ax.plot(self.s, self.lambdas, lw=1.2, color='red', label='$\lambda$(s)')
@@ -143,8 +148,9 @@ class Plot():
                 ylim=(min(self.WP)*1.2, max(self.WP)*1.2)
                 )
         ax.legend(loc='lower right')
-        ax.grid(True, color='gray', linewidth=0.2)
-        plt.show()
+        ax.grid(True, color='gray', linestyle=':')
+         
+        if show: plt.show()
 
         return fig, ax
 
@@ -162,22 +168,25 @@ class Plot():
             ReZ=np.real(self.Z)
             ImZ=np.imag(self.Z)
             Z=abs(self.Z)
+        else: Z = self.Z
 
-        if fig or ax is None: 
-            fig = plt.figure(2, figsize=(8,5), dpi=150, tight_layout=True)
+        show = False
+        if fig is None or ax is None:
+            fig = plt.figure(2, figsize=self._figsize, dpi=self._dpi, tight_layout=True)
             ax=fig.gca()
+            show = True
 
         if plot == 'real' or plot == 'all':
-            ax.plot(self.f*1e-9, ReZ, lw=1, color='r', marker='v', markersize=2., label='Real Z||(w)')
+            ax.plot(self.f*1e-9, ReZ, lw=1, color='r', markersize=2., label='Real Z||(w)')
 
         if plot == 'imag' or plot == 'all':
-            ax.plot(self.f*1e-9, ImZ, lw=1, color='g', marker='s', markersize=2., label='Imag Z||(w)')
+            ax.plot(self.f*1e-9, ImZ, lw=1, color='g', markersize=2., label='Imag Z||(w)')
 
         if plot == 'abs' or plot == 'all':
-            ifmax=np.argmax(self.Z)
+            ifmax=np.argmax(Z)
             ax.plot(self.f[ifmax]*1e-9, Z[ifmax], marker='o', markersize=4.0, color='blue')
-            ax.annotate(str(round(self.f[ifmax]*1e-9,2))+ ' GHz', xy=(self.f[ifmax]*1e-9,Z[ifmax]), xytext=(-20,5), textcoords='offset points', color='blue') 
-            ax.plot(self.f*1e-9, Z, lw=1, color='b', marker='s', markersize=2., label='Z||(w) magnitude')
+            ax.annotate(str(round(self.f[ifmax]*1e-9,2))+ ' GHz', xy=(self.f[ifmax]*1e-9,Z[ifmax]*0.8), xytext=(-20,1), textcoords='offset points', color='blue') 
+            ax.plot(self.f*1e-9, Z, lw=1.2, color='b', label='Z||(w) magnitude')
         
         ax.set( title='Longitudinal impedance Z||(w)',
                 xlabel='f [GHz]',
@@ -185,19 +194,22 @@ class Plot():
                 xlim=(0.,np.max(self.f)*1e-9)      
                 )
         ax.legend(loc='upper left')
-        ax.grid(True, color='gray', linewidth=0.2)
-        plt.show()
+        ax.grid(True, color='gray', linestyle=':')
+         
+        if show: plt.show()
 
         return fig, ax
 
-    def plot_trans_WP(self, fig = None, ax = None):
+    def plot_trans_WP(self, fig=None, ax=None):
         '''
         Plots the transverse wake potential Wx⊥(s), Wy⊥(s) 
         '''
 
-        if fig or ax is None: 
-            fig = plt.figure(3, figsize=(8,5), dpi=150, tight_layout=True)
+        show = False
+        if fig is None or ax is None:
+            fig = plt.figure(3, figsize=self._figsize, dpi=self._dpi, tight_layout=True)
             ax=fig.gca()
+            show = True
 
         ax.plot(self.s, self.WPx, lw=1.2, color='g', label='Wx⊥(s)')
         ax.plot(self.s, self.WPy, lw=1.2, color='magenta', label='Wy⊥(s)')
@@ -207,12 +219,13 @@ class Plot():
                 xlim=(np.min(self.s), np.max(self.s)),
                 )
         ax.legend(loc='best')
-        ax.grid(True, color='gray', linewidth=0.2)
-        plt.show()
+        ax.grid(True, color='gray', linestyle=':')
+         
+        if show: plt.show()
 
         return fig, ax
 
-    def plot_trans_Z(self, fig = None, ax = None, plot = 'abs'):
+    def plot_trans_Z(self, fig=None, ax=None, plot = 'abs'):
         '''
         Plots the transverse impedance Zx⊥(w), Zy⊥(w) 
 
@@ -232,45 +245,48 @@ class Plot():
             ImZy=np.imag(self.Zy)
             Zy=abs(self.Zy)
 
-        if fig or ax is None: 
-            fig = plt.figure(4, figsize=(8,5), dpi=150, tight_layout=True)
+        show = False
+        if fig is None or ax is None:
+            fig = plt.figure(4, figsize=self._figsize, dpi=self._dpi, tight_layout=True)
             ax=fig.gca()
+            show = True
 
         #--- plot Zx⊥(w)
         if plot == 'real' or plot == 'all':
-            ax.plot(f*1e-9, ReZx, lw=1, color='green', marker='v', markersize=2., label='Real Zx⊥(w)')
+            ax.plot(self.f*1e-9, ReZx, lw=1, color='green', ls = '--', label='Real Zx⊥(w)')
 
         if plot == 'imag' or plot == 'all':
-            ax.plot(self.f*1e-9, ImZx, lw=1, color='limegreen', marker='s', markersize=2., label='Imag Zx⊥(w)')
+            ax.plot(self.f*1e-9, ImZx, lw=1, color='green' ,ls = ':', label='Imag Zx⊥(w)')
 
         if plot == 'abs' or plot == 'all':
-            ifmax=np.argmax(Zx)
-            ax.plot(self.f[ifmax]*1e-9, Zx[ifmax], marker='o', markersize=4.0, color='green')
+            ifxmax=np.argmax(Zx)
+            ax.plot(self.f[ifxmax]*1e-9, Zx[ifxmax], color='green', marker='o', markersize=4.0)
             ax.annotate(str(round(self.f[ifxmax]*1e-9,2))+ ' GHz', xy=(self.f[ifxmax]*1e-9,Zx[ifxmax]), xytext=(-50,-5), textcoords='offset points', color='green') 
-            ax.plot(self.f*1e-9, Zx, lw=1, color='darkgreen', marker='s', markersize=2., label='Zx⊥(w)')
+            ax.plot(self.f*1e-9, Zx, lw=1.2, color='green', label='Zx⊥(w)')
 
         #--- plot Zy⊥(w)
         if plot == 'real' or plot == 'all':
-            ax.plot(self.f*1e-9, ReZy, lw=1, color='crimson', marker='v', markersize=2., label='Real Zy⊥(w)')
+            ax.plot(self.f*1e-9, ReZy, lw=1, color='magenta', ls = '--', label='Real Zy⊥(w)')
 
         if plot == 'imag' or plot == 'all':
-            ax.plot(self.f*1e-9, ImZy, lw=1, color='red', marker='s', markersize=2., label='Imag Zy⊥(w)')
+            ax.plot(self.f*1e-9, ImZy, lw=1, color='magenta', ls = ':', label='Imag Zy⊥(w)')
 
         if plot == 'abs' or plot == 'all':
             ifymax=np.argmax(Zy)
             ax.plot(self.f[ifymax]*1e-9, Zy[ifymax], marker='o', markersize=4.0, color='red')
             ax.annotate(str(round(self.f[ifymax]*1e-9,2))+ ' GHz', xy=(self.f[ifymax]*1e-9, Zy[ifymax]), xytext=(-50,-5), textcoords='offset points', color='magenta') 
-            ax.plot(self.f*1e-9, Zy, lw=1, color='maroon', marker='s', markersize=2., label='Zy⊥(w)')
+            ax.plot(self.f*1e-9, Zy, lw=1.2, color='magenta', label='Zy⊥(w)')
 
-        ax.set(title='Transverse impedance Z⊥(w) \n (x,y) source = ('+str(round(xsource/UNIT,1))+','+str(round(ysource/UNIT,1))+') mm | test = ('+str(round(xtest/UNIT,1))+','+str(round(ytest/UNIT,1))+') mm',
+        ax.set(title='Transverse impedance Z⊥(w) \n (x,y) source = ('+str(round(self.xsource/1e-3,1))+','+str(round(self.ysource/1e-3,1))+') mm | test = ('+str(round(self.xtest/1e-3,1))+','+str(round(self.ytest/1e-3,1))+') mm',
                 xlabel='f [GHz]',
                 ylabel='Z⊥(w) [$\Omega$]',   
-                xlim=(0.,np.max(f)*1e-9)      
+                xlim=(0.,np.max(self.f)*1e-9)      
                 )
 
         ax.legend(loc='best')
-        ax.grid(True, color='gray', linewidth=0.2)
-        plt.show()
+        ax.grid(True, color='gray', linestyle=':')
+         
+        if show: plt.show()
 
         return fig, ax
 

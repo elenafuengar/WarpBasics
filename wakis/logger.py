@@ -11,16 +11,17 @@ import logging
 class Logger(logging.Formatter):
 
     grey = "\x1b[1;37m"
+    green = "\x1b[0;32m"
     blue = "\x1b[36m"
     yellow = "\x1b[33;20m"
     red = "\x1b[31;20m"
     bold_red = "\x1b[31;1m"
     reset = "\x1b[0m"
-    format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s (%(filename)s:%(lineno)d)"
+    format = "%(asctime)s - %(levelname)s - %(message)s (%(filename)s:%(lineno)d)"
 
     FORMATS = {
-        logging.DEBUG: grey + format + reset,
-        logging.INFO: blue + format + reset,
+        logging.DEBUG: blue + format + reset,
+        logging.INFO: green + format + reset,
         logging.WARNING: yellow + format + reset,
         logging.ERROR: red + format + reset,
         logging.CRITICAL: bold_red + format + reset
@@ -32,7 +33,7 @@ class Logger(logging.Formatter):
         return formatter.format(record)
 
 def get_logger(Logger=Logger, level=2):
-    log = logging.getLogger('Wakis')
+    log = logging.getLogger(__name__)
 
     #set level
     if level == 1:
@@ -56,3 +57,6 @@ def get_logger(Logger=Logger, level=2):
     log.addHandler(ch)
 
     return log
+
+_verbose = 1    #1: Debug, 2: Info, 3: Warning, 4: Error, 5: Critical
+_log = get_logger(level=_verbose)
