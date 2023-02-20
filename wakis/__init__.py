@@ -6,4 +6,3 @@ from . import main
 from . import reader
 
 from .main import Wakis
-from .inputs import Inputs

@@ -7,6 +7,7 @@ with a custom coloured scheme
 '''
 
 import logging
+import sys
 
 class Logger(logging.Formatter):
 
@@ -58,5 +59,16 @@ def get_logger(Logger=Logger, level=2):
 
     return log
 
-_verbose = 1    #1: Debug, 2: Info, 3: Warning, 4: Error, 5: Critical
-_log = get_logger(level=_verbose)
+def progressbar(it, prefix="", size=60, out=sys.stdout): # Python3.6+
+    count = len(it)
+    def show(j):
+        x = int(size*j/count)
+        percent = int(j/count*100)
+        #print(f"{prefix}[{u'█'*x}{('.'*(size-x))}] {j}/{count}", end='\r', file=out, flush=True)
+        print(f"{prefix}[{u'█'*x}{('.'*(size-x))}] {percent}%", end='\r', file=out, flush=True)
+    show(0)
+    for i, item in enumerate(it):
+        yield item
+        show(i+1)
+    log=get_logger(level=1)
+    log.info("\n", flush=True, file=out)

@@ -13,7 +13,7 @@ each timestep
 import matplotlib.pyplot as plt
 import numpy as np
 
-class Plot():
+class Plotter():
     '''Mixin class to encapsulate plotting methods
     '''
     

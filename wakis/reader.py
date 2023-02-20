@@ -17,17 +17,30 @@ import pickle as pk
 import numpy as np
 import h5py 
 
-from wakis.logger import _log
-
-#globals
-_cwd = os.getcwd() + '/'
-
-i = 0
 class Reader():
     '''Mixin class to encapsulate input reading methods
     '''
 
-    def read_cst_1d(file, path=_cwd):
+    def read_warpx(self, filename=None):
+
+        if filename is None:
+            filename = self.input_file
+
+        exts = ['pk', 'pickle', 'out', 'dat']
+        ext = filename.split('.')[-1]
+
+        if ext == 'js' or ext == 'json':
+            with open(filename, 'r') as f:
+                d = {k: np.array(v) for k, v in js.loads(f.read()).items()}
+        elif ext in exts:
+            with open(filename, 'rb') as f:
+                d = pk.load(f)
+
+        for key, val in d.items():
+            setattr(self, key, val)
+
+
+    def read_cst_1d(self, file, path=None):
         '''
         Read CST plot data saved in ASCII .txt format
 
@@ -38,6 +51,8 @@ class Reader():
         path : :obj: `str`, optional
             Absolute path to file. Deafult is cwd
         '''
+        if path is None:
+            path=self.path
 
         X = []
         Y = []
@@ -58,15 +73,16 @@ class Reader():
         return {'X':X , 'Y': Y}
 
 
-    def read_Ez(path = _cwd, filename = 'Ez.h5'):
+    def read_Ez(self, path=None, filename='Ez.h5'):
         '''
         Read the Ez.h5 file containing the Ez field information
         '''
-
+        if path is None:
+            path = self.path
         hf = h5py.File(path+filename, 'r')
-        _log.info('Reading h5 file' )
-        _log.debug('Path to h5 file' + path + filename )
-        _log.debug('Size of the file: ' + str(round((os.path.getsize(path+filename)/10**9),2))+' Gb')
+        self.log.info('Reading h5 file' )
+        self.log.debug('Path to h5 file' + path + filename )
+        self.debug('Size of the file: ' + str(round((os.path.getsize(path+filename)/10**9),2))+' Gb')
 
         # get number of datasets
         size_hf=0.0
@@ -79,12 +95,28 @@ class Reader():
 
         return hf, dataset
 
-    def read_cst_3d(path = _cwd, path_3d = '3d', filename = 'Ez.h5'):
+    def read_cst_3d(self, path=None, folder='3d', filename='Ez.h5', save=True, save_json=False):
         '''
         Read CST 3d exports folder and store the
         Ez field information into a matrix Ez(x,y,z) 
-        for every timestep into a `.h5` file
+        for every timestep into a single `.h5` file
+
+        Parameters
+        ----------
+        path: str, default None
+            Path to the field data 
+        folder: str, default '3d'
+            Folder containing the CST field data .txt files
+        filename: str, default 'Ez.h5'
+            Name of the h5 file that will be generated
+        save: bool, default True
+            Flag to save the field and domain data with pickle
+        save_json: bool, default False
+            Flag to save the field and domain data in json format
+
         '''  
+        if path is None:
+            path = self.path + folder + '/'
 
         # Rename files with E-02, E-03
         for file in glob.glob(path_3d +'*E-02.txt'): 
@@ -151,7 +183,7 @@ class Reader():
 
         # Start scan
         for file in fnames:
-            _log.debug('Scanning file '+ file + '...')
+            self.log.debug('Scanning file '+ file + '...')
             title=file.split(path)
             title2=title[1].split('_')
             num=title2[1].split('.txt')
@@ -189,16 +221,29 @@ class Reader():
         hf.close()
 
         #set field info
-        _log.debug('Ez field is stored in a matrix with shape '+str(Ez.shape)+' in '+str(int(nsteps))+' datasets')
-        _log.info('Finished scanning files - hdf5 file'+filename+'succesfully generated')
+        self.log.debug('Ez field is stored in a matrix with shape '+str(Ez.shape)+' in '+str(int(nsteps))+' datasets')
+        self.log.info('Finished scanning files - hdf5 file'+filename+'succesfully generated')
 
-        data = {}
+        #Update self
+        self.x = x
+        self.y = y 
+        self.z = z
+        self.t = np.array(t)
 
-        #Save x,y,z,t in dictionary
-        data['x'] = x
-        data['y'] = y 
-        data['z'] = z
-        data['t'] = np.array(t)
+        if save:
+            ext = 'dat'
+            d = {'x': x, 'y': y, 'z': z, 't': t}
+            with open('cst.' + ext, 'wb') as f:
+                pk.dump(d, f)
+            self.log.info('"cst.' + ext +'" file succesfully generated') 
 
-        with open(path+'cst.inp', 'wb') as fp:
-            pk.dump(data, fp)
+        if save_json:
+            ext = 'json'
+            d = {'x': x, 'y': y, 'z': z, 't': t}
+            j = json.dumps({k: d[k].tolist() for k in keys})
+            with open('cst.' + ext, 'w') as f:
+                json.dump(j, f)
+            self.log.info('"cst.'+ ext +'" file succesfully generated') 
+
+
+
