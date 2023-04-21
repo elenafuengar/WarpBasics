@@ -17,86 +17,104 @@ longitudinal and transverse planes.
 '''
 
 import numpy as np
-from wakis.logger import progressbar
-
-c = 299792458.0 #[m/s]
+from tqdm import tqdm
 
 class Solver():
     '''Mixin class to encapsulate solver methods
     '''
 
-    def calc_long_WP_3d(self, **kwargs):
+    def calc_long_WP(self, Ezt=None, **kwargs):
         '''
         Obtains the wake potential from the pre-computed longitudinal
-        Ez(z) field from the specified solver. 
+        Ez(z,t) field from the specified solver. 
         Parameters can be passed as **kwargs.
 
         Parameters
         ----------
-        Ez_file : str, default 'Ez.h5'
-            HDF5 file containing the Ez(xsource, ysource, z) field data
-            for every timestep
         t : ndarray
             vector containing time values [s]
         z : ndarray
             vector containint z-coordinates [m]
-        
+        sigmaz : float
+            Beam longitudinal sigma, to calculate injection time
+        q : float
+            Beam charge, to normalize wake potential
+        ti : float, default 8.53*sigmaz/c
+            Injection time needed to set the negative part of s vector
+            and wakelength
+        Ezt : ndarray, default None
+            Matrix (nz x nt) containing Ez(x_test, y_test, z, t)
+            where nz = len(z), nt = len(t)
+        Ez_file : str, default 'Ez.h5'
+            HDF5 file containing the Ez(xsource, ysource, z) field data
+            for every timestep 
         '''
         for key, val in kwargs.items():
             setattr(self, key, val)
 
-        # Read data
-        if self.Ez is None:
-            hf, dataset = self.read_Ez(filename=Ez_file)
-        else:
-            hf, dataset = self.Ez['hf'], self.Ez['dataset']
+        # Read h5
+        if self.Ez_hf is None:
+            self.read_Ez()
+
+        if Ezt is not None:
+            self.Ezt = Ezt
 
         # Aux variables
         nt = len(self.t)
-        dt = self.t[-1]/(nt-1)
-        ti = 8.53*self.sigmaz/c  #injection time as in CST
+        dt = self.t[2]-self.t[1]
 
-        nz = len(self.z)
-        dz = self.z[2]-self.z[1]
-        zmax = max(self.z)
-        zmin = min(self.z)
+        # Injection time
+        if self.ti is not None:
+            ti = self.ti
 
-        zi = np.linspace(zmin, zmax, nt)  
-        dzi = zi[2]-zi[1]                 
+        else:
+            ti = 8.548921333333334*self.sigmaz/self.c  #injection time as in CST
+            self.ti = ti
+
+        if self.zf is None: self.zf = self.z
+
+        nz = len(self.zf)
+        dz = self.zf[2]-self.zf[1]
+        zmax = np.max(self.zf)
+        zmin = np.min(self.zf)               
 
         # Set Wake length and s
-        WL = nt*dt*c - (zmax-zmin) - ti*c
-        ns_neg = int(ti/dt)             #obtains the length of the negative part of s
-        ns_pos = int(WL/(dt*c))             #obtains the length of the positive part of s
-        s = np.linspace(-ti*c, 0, ns_neg) #sets the values for negative s
-        s = np.append(s, np.linspace(0, WL,  ns_pos))
+        WL = nt*dt*self.c - (zmax-zmin) - ti*self.c
+        s = np.arange(-self.ti*self.c, WL, dt*self.c) 
 
         self.log.debug('Max simulated time = '+str(round(self.t[-1]*1.0e9,4))+' ns')
-        self.log.debug('Wakelength = '+str(round(WL/self.unit_m,0))+' mm')
+        self.log.debug('Wakelength = '+str(round(WL,3))+'m')
 
         # Initialize 
-        Ezi = np.zeros((nt,nt))     #interpolated Ez field
-        ts = np.zeros((nt, len(s))) #result of (z+s)/c for each z, s
         WP = np.zeros_like(s)
+        keys = list(self.Ez_hf.keys())
 
-        self.log.info('Calculating longitudinal wake potential WP')
+        # Assembly Ez field
+        if self.Ezt is None:
+            self.log.info('Assembling Ez field...')
+            Ezt = np.zeros((nz,nt))     #Assembly Ez field
+            for n in range(nt):
+                Ez = self.Ez_hf[keys[n]]
+                Ezt[:, n] = Ez[Ez.shape[0]//2+1,Ez.shape[1]//2+1,:]
 
-        #integral of (Ez(xtest, ytest, z, t=(s+z)/c))dz
-        for n in range(len(s)):    
-            for k in range(0, nt): 
-                Ez = hf.get(dataset[n])
-                Ezi[:, n] = np.interp(zi, self.z, Ez[Ez.shape[0]//2+i,Ez.shape[1]//2+j,:])  
-                ts[k,n] = (zi[k]+s[n])/c-zmin/c-self.t[0]+ti
+            self.Ezt = Ezt
 
-                if ts[k,n]>0.0:
-                    it = int(ts[k,n]/dt)-1            #find index for t
-                    WP[n] = WP[n]+(Ezi[k, it])*dzi    #compute integral
+        # integral of (Ez(xtest, ytest, z, t=(s+z)/c))dz
+        self.log.info('Calculating longitudinal wake potential WP(s)...')
+        with tqdm(total=len(s)*len(self.zf)) as pbar:
+            for n in range(len(s)):    
+                for k in range(nz): 
+                    ts = (self.zf[k]+s[n])/self.c-zmin/self.c-self.t[0]+ti
+                    it = int(ts/dt)                 #find index for t
+                    WP[n] = WP[n]+(Ezt[k, it])*dz   #compute integral
+                    pbar.update(1)
 
         WP = WP/(self.q*1e12)     # [V/pC]
 
         self.s = s
         self.WP = WP
-
+        self.wakelength = WL
+        
 
     def calc_long_WP_3d(self, **kwargs):
         '''
@@ -121,65 +139,63 @@ class Solver():
         for key, val in kwargs.items():
             setattr(self, key, val)
 
-        # Read data
-        if self.Ez is None:
-            hf, dataset = self.read_Ez(filename=Ez_file)
+        # Read h5
+        if self.Ez_hf is None:
+            self.read_Ez()
+
+        # Init time
+        if self.ti is not None:
+            ti = self.ti
+
         else:
-            hf, dataset = self.Ez['hf'], self.Ez['dataset']
+            ti = 8.548921333333334*self.sigmaz/self.c  #injection time as in CST
 
         # Aux variables
         nt = len(self.t)
-        dt = self.t[-1]/(nt-1)
-        ti = 8.53*self.sigmaz/c  #injection time as in CST
+        dt = self.t[2]-self.t[1]
 
-        nz = len(self.z)
-        dz = self.z[2]-self.z[1]
-        zmax = max(self.z)
-        zmin = min(self.z)
-
-        zi = np.linspace(zmin, zmax, nt)  
-        dzi = zi[2]-zi[1]                 
+        # Longitudinal dimension
+        if self.zf is None: self.zf = self.z
+        nz = len(self.zf)
+        dz = self.zf[2]-self.zf[1]
+        zmax = max(self.zf)
+        zmin = min(self.zf)               
 
         # Set Wake length and s
-        WL = nt*dt*c - (zmax-zmin) - ti*c
-        ns_neg = int(ti/dt)                 #obtains the length of the negative part of s
-        ns_pos = int(WL/(dt*c))             #obtains the length of the positive part of s
-        s = np.linspace(-ti*c, 0, ns_neg) #sets the values for negative s
-        s = np.append(s, np.linspace(0, WL, ns_pos))
+        # Set Wake length and s
+        WL = nt*dt*self.c - (zmax-zmin) - ti*self.c
+        s = np.arange(-self.ti*self.c, WL, dt*self.c) 
 
         self.log.debug('Max simulated time = '+str(round(self.t[-1]*1.0e9,4))+' ns')
         self.log.debug('Wakelength = '+str(round(WL/self.unit_m,0))+' mm')
 
-        # Initialize 
-        Ezi = np.zeros((nt,nt))     #interpolated Ez field
-        ts = np.zeros((nt, len(s))) #result of (z+s)/c for each z, s
-
-        WP = np.zeros_like(s)
-        WP_3d = np.zeros((3,3,len(s)))
-
         #field subvolume in No.cells for x, y
         i0, j0 = self.n_transverse_cells, self.n_transverse_cells    
+        WP = np.zeros_like(s)
+        WP_3d = np.zeros((i0*2+1,j0*2+1,len(s)))
+        keys = list(self.Ez_hf.keys())
 
-        self.log.info('Calculating longitudinal wake potential WP')
-        for i in range(-i0,i0+1,1):  
-            for j in range(-j0,j0+1,1):
+        self.log.info('Calculating longitudinal wake potential WP(s)')
+        with tqdm(total=len(s)*(i0*2+1)*(j0*2+1)) as pbar:
+            for i in range(-i0,i0+1,1):  
+                for j in range(-j0,j0+1,1):
 
-                # Interpolate Ez field
-                for n in range(nt):
-                    Ez = hf.get(dataset[n])
-                    Ezi[:, n] = np.interp(zi, self.z, Ez[Ez.shape[0]//2+i,Ez.shape[1]//2+j,:])  
+                    # Assembly Ez field
+                    for n in range(nt):
+                        Ez = self.Ez_hf[keys[n]]
+                        Ezt[:, n] = Ez[Ez.shape[0]//2+1,Ez.shape[1]//2+1,:]
 
-                # integral of (Ez(xtest, ytest, z, t=(s+z)/c))dz
-                for n in range(len(s)):    
-                    for k in range(0, nt): 
-                        ts[k,n] = (zi[k]+s[n])/c-zmin/c-self.t[0]+ti
+                    # integral of (Ez(xtest, ytest, z, t=(s+z)/c))dz
+                    for n in range(len(s)):    
+                        for k in range(0, nz): 
+                            ts = (self.zf[k]+s[n])/self.c-zmin/self.c-self.t[0]+ti
+                            it = int(ts/dt)                 #find index for t
+                            WP[n] = WP[n]+(Ezt[k, it])*dz   #compute integral
+                        
+                        pbar.update(1)
 
-                        if ts[k,n]>0.0:
-                            it = int(ts[k,n]/dt)-1            #find index for t
-                            WP[n] = WP[n]+(Ezi[k, it])*dzi    #compute integral
-
-                WP = WP/(self.q*1e12)     # [V/pC]
-                WP_3d[i0+i,j0+j,:] = WP 
+                    WP = WP/(self.q*1e12)     # [V/pC]
+                    WP_3d[i0+i,j0+j,:] = WP 
 
         self.s = s
         self.WP = WP_3d[i0,j0,:]
@@ -221,8 +237,8 @@ class Solver():
             dx = kwargs['dx']
             dy = kwargs['dy']
         else:
-            dx=self.x[2]-self.x[1]
-            dy=self.y[2]-self.y[1]
+            dx=self.xf[2]-self.xf[1]
+            dy=self.yf[2]-self.yf[1]
 
         ds = self.s[2]-self.s[1]
         i0, j0 = self.n_transverse_cells, self.n_transverse_cells
@@ -285,16 +301,17 @@ class Solver():
             self.calc_lambdas()
         elif self.lambdas is None and chargedist is None:
             self.calc_lambdas_analytic()
+            self.log.warning('Using analytic charge distribution λ(s) since no data was provided')
 
         # Set up the DFT computation
         ds = np.mean(self.s[1:]-self.s[:-1])
-        fmax=1*c/self.sigmaz/3   #max frequency of interest
-        N=int((c/ds)//fmax*1001) #to obtain a 1000 sample single-sided DFT
+        fmax=1*self.c/self.sigmaz/3   #max frequency of interest
+        N=int((self.c/ds)//fmax*1001) #to obtain a 1000 sample single-sided DFT
 
         # Obtain DFTs
-        lambdafft = np.fft.fft(self.lambdas*c, n=N)
+        lambdafft = np.fft.fft(self.lambdas*self.c, n=N)
         WPfft = np.fft.fft(self.WP*1e12, n=N)
-        ffft=np.fft.fftfreq(len(WPfft), ds/c)
+        ffft=np.fft.fftfreq(len(WPfft), ds/self.c)
 
         # Mask invalid frequencies
         mask  = np.logical_and(ffft >= 0 , ffft < fmax)
@@ -318,14 +335,14 @@ class Solver():
 
         # Set up the DFT computation
         ds = self.s[2]-self.s[1]
-        fmax=1*c/self.sigmaz/3
-        N=int((c/ds)//fmax*1001) #to obtain a 1000 sample single-sided DFT
+        fmax=1*self.c/self.sigmaz/3
+        N=int((self.c/ds)//fmax*1001) #to obtain a 1000 sample single-sided DFT
 
         # Obtain DFTs
 
         # Normalized charge distribution λ(w) 
-        lambdafft = np.fft.fft(self.lambdas*c, n=N)
-        ffft=np.fft.fftfreq(len(lambdafft), ds/c)
+        lambdafft = np.fft.fft(self.lambdas*self.c, n=N)
+        ffft=np.fft.fftfreq(len(lambdafft), ds/self.c)
         mask  = np.logical_and(ffft >= 0 , ffft < fmax)
         lambdaf = lambdafft[mask]*ds
 
@@ -356,12 +373,21 @@ class Solver():
         q : float, optional
             Total beam charge in [C]
         z : ndarray
-            vector containing z-coordinates [m]
+            vector containing z-coordinates of the domain [m]
+        zf : ndarray
+            vector containing z-coordinates of the field monitor [m]
         '''
         for key, val in kwargs.items():
             setattr(self, key, val)
 
-        self.lambdas = np.interp(self.s, self.z, self.chargedist/self.q)
+        if len(self.z) == len(self.chargedist): 
+            z = self.z
+        elif len(self.zf) == len(self.chargedist):
+            z = self.zf
+        else: 
+            self.log.warning('Dimension error: check inputs dimensions')
+
+        self.lambdas = np.interp(self.s, z, self.chargedist/self.q)
 
     def calc_lambdas_analytic(self, **kwargs):
         '''Obtains normalized charge distribution in s λ(z)
@@ -385,7 +411,7 @@ class Solver():
 
 
 
-
+    
 
 
 

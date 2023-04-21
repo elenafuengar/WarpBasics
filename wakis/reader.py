@@ -10,8 +10,10 @@ the supported EM solvers
 
 import os
 import glob
+import shutil
 import json as js
 import pickle as pk
+from tqdm import tqdm
 
 #dependencies 
 import numpy as np
@@ -73,29 +75,34 @@ class Reader():
         return {'X':X , 'Y': Y}
 
 
-    def read_Ez(self, path=None, filename='Ez.h5'):
+    def read_Ez(self, filename=None, return_=False):
         '''
         Read the Ez.h5 file containing the Ez field information
         '''
-        if path is None:
-            path = self.path
-        hf = h5py.File(path+filename, 'r')
-        self.log.info('Reading h5 file' )
-        self.log.debug('Path to h5 file' + path + filename )
-        self.debug('Size of the file: ' + str(round((os.path.getsize(path+filename)/10**9),2))+' Gb')
 
-        # get number of datasets
-        size_hf=0.0
-        dataset=[]
-        n_step=[]
-        for key in hf.keys():
-            size_hf+=1
-            dataset.append(key)
-            n_step.append(int(key.split('_')[1]))
+        if filename is None:
+            filename = self.Ez_file
 
-        return hf, dataset
+        hf = h5py.File(filename, 'r')
+        self.log.info(f'Reading h5 file {filename}' )
+        self.log.debug('Size of the file: ' + str(round((os.path.getsize(filename)/10**9),2))+' Gb')
 
-    def read_cst_3d(self, path=None, folder='3d', filename='Ez.h5', save=True, save_json=False):
+        #Set attributes
+        self.Ez_hf = hf
+        self.Ez_file = filename
+        if 'x' in hf.keys():
+            self.xf = np.array(hf['x'])
+        if 'y' in hf.keys():
+            self.yf = np.array(hf['y'])
+        if 'z' in hf.keys():
+            self.zf = np.array(hf['z'])
+        if 't' in hf.keys():
+            self.t = np.array(hf['t'])
+
+        if return_:
+            return hf
+
+    def read_cst_3d(self, path=None, folder='3d', filename='Ez.h5', units=1e-3, save_pickle=False, save_json=False, **kwargs):
         '''
         Read CST 3d exports folder and store the
         Ez field information into a matrix Ez(x,y,z) 
@@ -118,35 +125,44 @@ class Reader():
         if path is None:
             path = self.path + folder + '/'
 
+
+
         # Rename files with E-02, E-03
-        for file in glob.glob(path_3d +'*E-02.txt'): 
-            file=file.split(path_3d)
+        for file in glob.glob(path +'*E-02.txt'): 
+            file=file.split(path)
             title=file[1].split('_')
             num=title[1].split('E')
             num[0]=float(num[0])/100
 
             ntitle=title[0]+'_'+str(num[0])+'.txt'
-            os.rename(path_3d+file[1], path_3d+ntitle)
+            shutil.copy(path+file[1], path+file[1]+'.old')
+            os.rename(path+file[1], path+ntitle)
 
-        for file in glob.glob(path_3d +'*E-03.txt'): 
-            file=file.split(path_3d)
+        for file in glob.glob(path +'*E-03.txt'): 
+            file=file.split(path)
             title=file[1].split('_')
             num=title[1].split('E')
             num[0]=float(num[0])/1000
 
             ntitle=title[0]+'_'+str(num[0])+'.txt'
-            os.rename(path_3d+file[1], path_3d+ntitle)
+            shutil.copy(path+file[1], path+file[1]+'.old')
+            os.rename(path+file[1], path+ntitle)
 
-        for file in glob.glob(path_3d +'*_0.txt'): 
-            file=file.split(path_3d)
+        for file in glob.glob(path +'*_0.txt'): 
+            file=file.split(path)
             title=file[1].split('_')
             num=title[1].split('.')
             num[0]=float(num[0])
 
             ntitle=title[0]+'_'+str(num[0])+'.txt'
-            os.rename(path_3d+file[1], path_3d+ntitle)
+            shutil.copy(path+file[1], path+file[1]+'.old')
+            os.rename(path+file[1], path+ntitle)
 
-        fnames = sorted(glob.glob(path_3d+'*.txt'))
+        #sort
+        def sorter(item):
+            num=item.split(path)[1].split('_')[1].split('.txt')[0]
+            return float(num)
+        fnames = sorted(glob.glob(path+'*.txt'), key=sorter)
 
         #Get the number of longitudinal and transverse cells used for Ez
         i=0
@@ -182,8 +198,9 @@ class Reader():
         rows=skip 
 
         # Start scan
-        for file in fnames:
-            self.log.debug('Scanning file '+ file + '...')
+        self.log.info(f'Scanning files in {path}:')
+        for file in tqdm(fnames):
+            #self.log.debug('Scanning file '+ file + '...')
             title=file.split(path)
             title2=title[1].split('_')
             num=title2[1].split('.txt')
@@ -198,11 +215,15 @@ class Reader():
                         k=int(rows/n_transverse_cells**2)
                         j=int(rows/n_transverse_cells-n_transverse_cells*k)
                         i=int(rows-j*n_transverse_cells-k*n_transverse_cells**2) 
-                        
+
+                        if k>= n_longitudinal_cells:
+                            k = int(n_longitudinal_cells-1)
+
                         Ez[i,j,k]=float(columns[5])
-                        x[i]=float(columns[0])
-                        y[j]=float(columns[1])
-                        z[k]=float(columns[2])
+
+                        x[i]=float(columns[0])*units
+                        y[j]=float(columns[1])*units
+                        z[k]=float(columns[2])*units
 
             if nsteps == 0:
                 prefix='0'*5
@@ -218,28 +239,36 @@ class Reader():
             #close file
             f.close()
 
+        hf['x'] = x
+        hf['y'] = y
+        hf['z'] = z
+        hf['t'] = t
+
         hf.close()
 
         #set field info
         self.log.debug('Ez field is stored in a matrix with shape '+str(Ez.shape)+' in '+str(int(nsteps))+' datasets')
-        self.log.info('Finished scanning files - hdf5 file'+filename+'succesfully generated')
+        self.log.info(f'Finished scanning files - hdf5 file {filename} succesfully generated')
 
         #Update self
-        self.x = x
-        self.y = y 
-        self.z = z
+        self.xf = x
+        self.yf = y 
+        self.zf = z
         self.t = np.array(t)
 
-        if save:
+        for key, val in kwargs.items():
+            setattr(self, key, val)
+
+        if save_pickle:
             ext = 'dat'
-            d = {'x': x, 'y': y, 'z': z, 't': t}
+            d = {'xf': x, 'yf': y, 'zf': z, 't': t}
             with open('cst.' + ext, 'wb') as f:
                 pk.dump(d, f)
             self.log.info('"cst.' + ext +'" file succesfully generated') 
 
         if save_json:
             ext = 'json'
-            d = {'x': x, 'y': y, 'z': z, 't': t}
+            d = {'xf': x, 'yf': y, 'zf': z, 't': t}
             j = json.dumps({k: d[k].tolist() for k in keys})
             with open('cst.' + ext, 'w') as f:
                 json.dump(j, f)

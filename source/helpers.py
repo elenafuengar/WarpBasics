@@ -80,7 +80,7 @@ def read_cst_3d(path):
     '''
 
     path = path + '3d/'
-    hf_Ez = 'Ez.h5'
+    hf_name = 'Ez.h5'
 
     # Rename files with E-02, E-03
     for file in glob.glob(path +'*E-02.txt'): 
@@ -110,7 +110,11 @@ def read_cst_3d(path):
         ntitle=title[0]+'_'+str(num[0])+'.txt'
         os.rename(path+file[1], path+ntitle)
 
-    fnames = sorted(glob.glob(path+'*.txt'))
+    def sorter(item):
+        num=item.split(path)[1].split('_')[1].split('.txt')[0]
+        return float(num)
+    fnames = sorted(glob.glob(path+'*.txt'), key=sorter)
+    #fnames = sorted(glob.glob(path+'*.txt'))
 
     #Get the number of longitudinal and transverse cells used for Ez
     i=0

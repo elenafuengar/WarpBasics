@@ -18,12 +18,13 @@ class Logger(logging.Formatter):
     red = "\x1b[31;20m"
     bold_red = "\x1b[31;1m"
     reset = "\x1b[0m"
-    format = "%(asctime)s - %(levelname)s - %(message)s (%(filename)s:%(lineno)d)"
+    #format = "%(asctime)s - %(levelname)s - %(message)s (%(filename)s:%(lineno)d)"
+    format = "- %(levelname)s - %(message)s (%(filename)s:%(lineno)d)"
 
     FORMATS = {
-        logging.DEBUG: blue + format + reset,
-        logging.INFO: green + format + reset,
-        logging.WARNING: yellow + format + reset,
+        logging.DEBUG: "["+ blue + "%(levelname)s" + reset + "] %(message)s (" + blue +"%(filename)s:%(lineno)d" + reset + ")",
+        logging.INFO: "["+ green + "%(levelname)s" + reset + "] %(message)s",
+        logging.WARNING: "["+ yellow + "%(levelname)s" + reset + "] %(message)s (" + yellow +"%(filename)s:%(lineno)d" + reset + ")",
         logging.ERROR: red + format + reset,
         logging.CRITICAL: bold_red + format + reset
     }
@@ -58,17 +59,3 @@ def get_logger(Logger=Logger, level=2):
     log.addHandler(ch)
 
     return log
-
-def progressbar(it, prefix="", size=60, out=sys.stdout): # Python3.6+
-    count = len(it)
-    def show(j):
-        x = int(size*j/count)
-        percent = int(j/count*100)
-        #print(f"{prefix}[{u'█'*x}{('.'*(size-x))}] {j}/{count}", end='\r', file=out, flush=True)
-        print(f"{prefix}[{u'█'*x}{('.'*(size-x))}] {percent}%", end='\r', file=out, flush=True)
-    show(0)
-    for i, item in enumerate(it):
-        yield item
-        show(i+1)
-    log=get_logger(level=1)
-    log.info("\n", flush=True, file=out)

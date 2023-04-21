@@ -24,6 +24,8 @@ s = d2['X']*1e-3
 
 # interpolate charge dist to s
 wk.calc_lambdas(z=z, s=s, chargedist=chargedist, q=q, sigmaz=sigmaz)
+
+# calculate impedance with DFT 1000 samples
 wk.calc_long_Z(WP=WP)
 
 # Plot impedance

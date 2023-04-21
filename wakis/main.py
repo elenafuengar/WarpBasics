@@ -20,7 +20,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from wakis.logger import get_logger
-from wakis.inputs import Bucket
+from wakis.bucket import Bucket
 
 class Wakis(Bucket):
     '''
@@ -31,8 +31,8 @@ class Wakis(Bucket):
     Methods include setters for atributes and logger initialization
     '''
 
-    def __init__(self, solver=None, input_file=None, q=1e9, sigmaz=1e-3, 
-                 xsource=0., ysource=0., xtest=0., ytest=0., chargedist='lambda.txt',
+    def __init__(self, solver=None, input_file=None, q=1e-9, sigmaz=1e-3, 
+                 xsource=0., ysource=0., xtest=0., ytest=0., chargedist=None, ti=None,
                  rho=None, Ez_file='Ez.h5', unit_m=1e-3, unit_t=1e-9, unit_f=1e9, 
                  path=None, verbose=2, **kwargs):
         '''
@@ -59,6 +59,8 @@ class Wakis(Bucket):
             Integration path center in the transverse plane, x-dir [m]
         ytest : float
             Integration path center in the transverse plane, y-dir [m]
+        ti : float 
+            Injection time, when beam enters domain [s]
         chargedist : dict or str, default 'lambda.txt'
             When str, specifies the filename containing the charge distribution data
             When dict, contains the charge distribution data in keys: {'X','Y'}
@@ -76,6 +78,9 @@ class Wakis(Bucket):
         input
         '''
 
+        #constants
+        self.c = 299792458.0 #[m/s]
+
         #user
         self.solver = solver  
         self.input_file = input_file
@@ -89,22 +94,24 @@ class Wakis(Bucket):
         self.sigmaz = sigmaz
         self.xsource, self.ysource = xsource, xtest
         self.xtest, self.ytest = xtest, ytest
-        self.chargedist = chargedist
+        self.chargedist = None
         self.rho = rho
+        self.ti = ti
 
         #field
-        self.Ez_file= Ez_file
-        self.Ez = None
+        self.Ez_file = Ez_file
+        self.Ez_hf = None
+        self.Ezt = None #Ez(x_t, y_t, z, t)
         self.t = None
-        self.x, self.y, self.z = None, None, None    #field subdomain
-        self.x0, self.y0, self.z0 = None, None, None #full simulation domain
+        self.xf, self.yf, self.zf = None, None, None    #field subdomain
+        self.x, self.y, self.z = None, None, None #full simulation domain
 
         #solver init
         self.s = None
         self.lambdas = None
         self.WP = None
         self.WP_3d = None
-        self.n_transverse_cells= 1
+        self.n_transverse_cells = 1
         self.WPx, self.WPy = None, None
         self.f = None
         self.Z = None
@@ -209,7 +216,7 @@ class Wakis(Bucket):
             self.chargedist = self.read_cst_1d(self, filename=chargedist)
 
     def fields(self, Ez_file='Ez.h5', input_file=None, input_folder=None, path=None, 
-                t=None, x=None, y=None, z=None, x0=None, y0=None, z0=None):
+                t=None, xf=None, yf=None, zf=None, x=None, y=None, z=None):
 
         '''Set Electric field data. 
         All defaults are None unless specified otherwise.
@@ -230,24 +237,28 @@ class Wakis(Bucket):
             Absolute path to the input_folder. Default is set to cwd.
         t : ndarray
             vector containing each timestep time value
-        x : ndarray 
+        xf : ndarray 
             vector containing Ez field x-coordinates
-        y : ndarray
+        yf : ndarray
             vector containing Ez field y-coordinates
-        z : ndarray
+        zf : ndarray
             vector containing Ez field z-coordinates
-        x0 : ndarray
+        x : ndarray
             vector containing domain x-coordinates
-        y0 : ndarray
+        y : ndarray
             vector containing domain y-coordinates            
-        z0 : ndarray
+        z : ndarray
             vector containing domain z-coordinates
         '''
 
-        self.Ez_file = Ez_file
+        if len(Ez_file.split('/')) > 1:
+            self.Ez_file = Ez_file.split('/')[-1]
+        else:
+            self.Ez_file = Ez_file
+            
         self.t = t
-        self.x, self.y, self.z = x, y, z        #field subdomain
-        self.x0, self.y0, self.z0 = x0, y0, z0  #full simulation domain)
+        self.xf, self.yf, self.zf = xf, yf, zf        #field subdomain
+        self.x, self.y, self.z = x, y, z  #full simulation domain
 
         if input_folder is not None and self.solver == 'cst':
             self.read_cst_3d(path=path, folder=input_folder)
@@ -256,12 +267,14 @@ class Wakis(Bucket):
         if input_file is not None and self.solver == 'cst':
             self.read_cst(filename=input_file)
 
-        if self.Ez is None:
+        '''
+        if self.Ez_hf is None:
             try:
                 hf, dataset = self.read_Ez(filename=Ez_file)
-                self.Ez = {'hf': hf, 'dataset': dataset}
+                self.Ez_hf = {'hf': hf, 'dataset': dataset}
             except:
                 self.log.warning(f'{Ez_file} not found or could not be opened')
+        '''
 
     @classmethod
     def from_inputs(cls, *clss): 
@@ -300,8 +313,7 @@ class Wakis(Bucket):
             return cls(**d)
 
         else:
-            get_logger(2).warning(f'"{f}" file format not supported')
-           
+            get_logger(2).warning(f'"{f}" file format not supported')        
 
     def solve(self):
         '''
@@ -349,7 +361,7 @@ class Wakis(Bucket):
         keys = ['s', 'WP', 'WPx', 'WPy', 'f', 'Z', 'Zx', 'Zy', \
                 'lambdas', 'xsource', 'ysource', 'xtest', 'ytest', \
                 'q', 'sigmaz', 't', 'x', 'y', 'z', \
-                'unit_m', 'unit_f', 'unit_t', 'path' ]
+                'unit_m', 'unit_f', 'unit_t', 'path', 'Ez_file']
 
         exts = ['pk', 'pickle', 'out', 'dat']
 
@@ -467,6 +479,6 @@ class Wakis(Bucket):
     def __str__(self):
         return f'Wakis atributes: \n' + \
         '- beam: \n q={self.q}, sigmaz={self.sigma}, xsource={self.xsource}, ysource={self.ysource}, xtest={self.xtest}, ytest={self.ytest} \n' +\
-        '- field: \n Ez={self.Ez}, \n t={self.t}, \n x={self.x}, y={self.y}, z={self.z}, x0={self.x0}, y0={self.y0}, z0={self.z0} \n' + \
+        '- field: \n Ez={self.Ez}, \n t={self.t}, \n x={self.xf}, y={self.y}, z={self.z}, x0={self.x}, y0={self.y0}, z0={self.z0} \n' + \
         '- charge distribution: \n chargedist={self.chargedist} \n'
         '- solver: \n s={s}, lambdas={self.lambdas}, WP={self.WP}, Z={self.Z}, WPx={self.WPx}, WPy={self.WPy}, Zx={self.Zx}, Zy={self.Zy} \n'

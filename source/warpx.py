@@ -59,7 +59,7 @@ t0 = time.time()
 # USER DEFINED VARIABLES
 
 # path to geometry file
-path='$HOME/wakis/examples/cubcavity/'
+path = os.getcwd() + '/'
 
 #=======================#
 # Simulation parameters #
@@ -75,7 +75,7 @@ flag_logfile = False        #generates a .log file with the simulation info
 
 # beam parameters
 q=1e-9                      #Total beam charge [C]
-sigmaz = 15*UNIT            #[m]
+sigmaz = 18*UNIT            #[m]
 
 # beam source center 
 # ---[longitudinal impedance: beam center in 0,0]
@@ -93,30 +93,50 @@ ytest = 0.0*UNIT
 # Geometry parameters #
 #=====================#
 
-# Define stl file name
-stl_file = 'taper45.stl'
+stl = False
 
-# Initialize WarpX EB object
-embedded_boundary = picmi.EmbeddedBoundary(stl_file = path + stl_file)
+if stl:
+    # Define stl file name
+    stl_file = 'cubpillbox.stl'
 
-# STL domain limits
-stl_unit = 1e-2
-obj = mesh.Mesh.from_file(path+stl_file)
-W = (obj.x.max() - obj.x.min())*stl_unit
-H = (obj.y.max() - obj.y.min())*stl_unit
-L = (obj.z.max() - obj.z.min())*stl_unit
+    # Initialize WarpX EB object
+    embedded_boundary = picmi.EmbeddedBoundary(stl_file = path + stl_file)
+
+    # STL domain limits
+    stl_unit = 1e-2
+    obj = mesh.Mesh.from_file(path+stl_file)
+    W = (obj.x.max() - obj.x.min())*stl_unit
+    H = (obj.y.max() - obj.y.min())*stl_unit
+    L = (obj.z.max() - obj.z.min())*stl_unit
+
+else:
+    #define geometry
+    w_cav, h_cav, L_cav = 50*UNIT, 50*UNIT, 30*UNIT
+    w_pipe, h_pipe, L_pipe = 15*UNIT, 15*UNIT, 150*UNIT
+
+    # Initialize WarpX EB object
+    embedded_boundary = picmi.EmbeddedBoundary(
+        implicit_function = "w=w_pipe+(w_cav-w_pipe)*(z<L_cav/2)*(z>-L_cav/2); h=h_pipe+(h_cav-h_pipe)*(z<L_cav/2)*(z>-L_cav/2); max(max(x-w/2,-w/2-x),max(y-h/2,-h/2-y))",
+        w_cav = w_cav, 
+        h_cav = h_cav, 
+        L_cav = L_cav, 
+        w_pipe = w_pipe, 
+        h_pipe = h_pipe, 
+    )
+
+    xmin, xmax = -w_cav/2, +w_cav/2
+    ymin, ymax = -h_cav/2, +h_cav/2
+    zmin, zmax = -L_pipe/2, +L_pipe/2
+
+    W = xmax - xmin
+    H = ymax - ymin
+    L = zmax - zmin
 
 # Define mesh resolution in x, y, z
-dh = 2.0*UNIT
+dh = 1.0*UNIT
 
 #number of pml cells needed (included in domain limits)
 n_pml=10  #default: 10
-
-# define field monitor 
-xlo, xhi = xtest-2*dh, xtest+2*dh
-ylo, yhi = ytest-2*dh, ytest+2*dh
-zlo, zhi = -L/2, -L/2
-flag_mask_pml = False  #removes the pml cells from the E field monitor
 
 #--------------------------------------------------------------------------------
 
@@ -144,8 +164,8 @@ dy=(ymax-ymin)/ny
 dz=(zmax-zmin)/nz
 
 # mesh arrays (center of the cell)
-x=np.linspace(xmin, xmax, nx)
-y=np.linspace(ymin, ymax, ny)
+x=np.linspace(xmin, xmax, nx+1)
+y=np.linspace(ymin, ymax, ny+1)
 z=np.linspace(zmin, zmax, nz)
 
 # max grid size for mpi
@@ -155,9 +175,15 @@ max_grid_size_z = nz//NUM_PROC
 
 print('[WARPX][INFO] Initialized mesh with ' + str((nx,ny,nz)) + ' number of cells')
 
+# define field monitor 
+xlo, xhi = xtest-2*dh, xtest+2*dh
+ylo, yhi = ytest-2*dh, ytest+2*dh
+zlo, zhi = zmin, zmax
+flag_mask_pml = False  #removes the pml cells from the E field monitor
+
 # mask for the E field extraction
 if flag_mask_pml:
-    zmask = np.logical_and(z >= -L/2.0 + n_pml*dz, z <= L/2 - n_pml*dz)
+    zmask = np.logical_and(z >= zmin + n_pml*dz, z <= zmax - n_pml*dz)
 else:
     zmask = np.logical_and(z >= zlo, z <= zhi)
 xmask = np.logical_and(x >= xlo - dh, x <= xhi + dh)
@@ -218,7 +244,7 @@ print('[WARPX][INFO] Wake length = '+str(Wake_length/UNIT)+ ' mm')
 sim = picmi.Simulation(
     solver = solver,
     max_steps = max_steps,
-    warpx_embedded_boundary=embedded_boundary,
+    warpx_embedded_boundary = embedded_boundary,
     particle_shape = 'cubic', 
     verbose = 1
 )
@@ -341,8 +367,6 @@ rho_t=[]
 
 print('[WARPX][PROGRESS] Starting simulation with a total of '+str(max_steps)+' timesteps...' )
 for n_step in range(max_steps):
-
-    print(n_step)
     sim.step(1)
 
     # Extract the electric field from all processors
@@ -360,7 +384,14 @@ for n_step in range(max_steps):
     #hf_Ez.create_dataset('Ez_'+prefix[n_step]+str(n_step), data=Ez[:,:,zmask])
 
     # Saves the Ez field in a prism along the z axis 3 cells wide into a hdf5 dataset
-    hf_Ez.create_dataset('Ez_'+prefix[n_step]+str(n_step), data=Ez[xmask, ymask, zmask] )
+    Ezz = Ez[xmask][:,ymask][:,:,zmask]
+    print(Ezz.shape)
+    hf_Ez.create_dataset('Ez_'+prefix[n_step]+str(n_step), data=Ezz)
+
+hf_Ez['x'] = x[xmask]
+hf_Ez['y'] = y[ymask]
+hf_Ez['z'] = z[zmask]
+hf_Ez['t'] = np.array(t)
 
 # Finish simulation --------------------------------------------
 
@@ -415,6 +446,7 @@ data = { 'init_time' : -t_offs,
         }
 
 # write the input dictionary to a txt using pickle module
+
 with open(path+'warpx.inp', 'wb') as fp:
     pk.dump(data, fp)
 

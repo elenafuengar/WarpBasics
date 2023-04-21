@@ -29,7 +29,7 @@ class Plotter():
         '''
 
         # Read data
-        hf, dataset = self.Ez['hf'], self.Ez['dataset']
+        hf, dataset = self.Ez_hf['hf'], self.Ez_hf['dataset']
 
         # Extract field on axis Ez(0,0,z,t)
         Ez0=[]
@@ -80,7 +80,7 @@ class Plotter():
         '''
 
         # Read data
-        hf, dataset = self.Ez['hf'], self.Ez['dataset']
+        hf, dataset = self.Ez_hf['hf'], self.Ez_hf['dataset']
         if self.y0 is not None : y = self.y0
         else: y = self.y
 
@@ -102,7 +102,7 @@ class Plotter():
         plt.close()
 
 
-    def plot_charge_dist(self, fig = None, ax = None):
+    def plot_charge_dist(self, fig=None, ax=None):
         '''
         Plots the charge distribution λ(s) 
         '''
@@ -126,7 +126,7 @@ class Plotter():
 
         return fig, ax
 
-    def plot_long_WP(self, fig=None, ax=None, chargedist = False):
+    def plot_long_WP(self, fig=None, ax=None, compare=False, chargedist=False, units=1e-3):
         '''
         Plots the longitudinal wake potential W||(s) 
         '''
@@ -134,13 +134,18 @@ class Plotter():
         show = False
         if fig is None or ax is None:
             fig = plt.figure(1, figsize=self._figsize, dpi=self._dpi, tight_layout=True)
-            ax=fig.gca()
+            ax = fig.gca()
             show = True
 
         if chargedist:
             ax.plot(self.s, self.lambdas, lw=1.2, color='red', label='$\lambda$(s)')
 
-        ax.plot(self.s, self.WP, lw=1.2, color='darkorange', label='$W_{||}$(s)')
+        ax.plot(self.s, self.WP, lw=1.5, color='darkorange', label='WPz(s)')
+        
+        if compare:
+            d = self.read_cst_1d('WP.txt')
+            ax.plot(d['X']*units, d['Y'], lw=1., c='k', ls='--', label='WPz(s) CST')
+
         ax.set(title='Longitudinal Wake potential $W_{||}$(s)',
                 xlabel='s [m]',
                 ylabel='$W_{||}$(s) [V/pC]',
@@ -154,7 +159,7 @@ class Plotter():
 
         return fig, ax
 
-    def plot_long_Z(self, fig = None, ax = None, plot = 'abs'):
+    def plot_long_Z(self, fig=None, ax=None, plot = 'abs'):
         '''
         Plots the longitudinal impedance Z||(w)
         
@@ -177,20 +182,20 @@ class Plotter():
             show = True
 
         if plot == 'real' or plot == 'all':
-            ax.plot(self.f*1e-9, ReZ, lw=1, color='r', markersize=2., label='Real Z||(w)')
+            ax.plot(self.f*1e-9, ReZ, lw=1, color='r', markersize=2., label='Real Z(f)')
 
         if plot == 'imag' or plot == 'all':
-            ax.plot(self.f*1e-9, ImZ, lw=1, color='g', markersize=2., label='Imag Z||(w)')
+            ax.plot(self.f*1e-9, ImZ, lw=1, color='g', markersize=2., label='Imag Z(f)')
 
         if plot == 'abs' or plot == 'all':
             ifmax=np.argmax(Z)
             ax.plot(self.f[ifmax]*1e-9, Z[ifmax], marker='o', markersize=4.0, color='blue')
             ax.annotate(str(round(self.f[ifmax]*1e-9,2))+ ' GHz', xy=(self.f[ifmax]*1e-9,Z[ifmax]*0.8), xytext=(-20,1), textcoords='offset points', color='blue') 
-            ax.plot(self.f*1e-9, Z, lw=1.2, color='b', label='Z||(w) magnitude')
+            ax.plot(self.f*1e-9, Z, lw=1.2, color='b', label='Z||(f) magnitude')
         
-        ax.set( title='Longitudinal impedance Z||(w)',
+        ax.set( title='Longitudinal impedance Z||(f)',
                 xlabel='f [GHz]',
-                ylabel='Z||(w) [$\Omega$]',   
+                ylabel='Z||(f) [$\Omega$]',   
                 xlim=(0.,np.max(self.f)*1e-9)      
                 )
         ax.legend(loc='upper left')
@@ -211,8 +216,8 @@ class Plotter():
             ax=fig.gca()
             show = True
 
-        ax.plot(self.s, self.WPx, lw=1.2, color='g', label='Wx⊥(s)')
-        ax.plot(self.s, self.WPy, lw=1.2, color='magenta', label='Wy⊥(s)')
+        ax.plot(self.s, self.WPx, lw=1.2, color='g', label='WPx⊥(s)')
+        ax.plot(self.s, self.WPy, lw=1.2, color='magenta', label='WPy⊥(s)')
         ax.set(title='Transverse Wake potential W⊥(s) \n (x,y) source = ('+str(round(self.xsource/1e-3,1))+','+str(round(self.ysource/1e-3,1))+') mm | test = ('+str(round(self.xtest/1e-3,1))+','+str(round(self.ytest/1e-3,1))+') mm',
                 xlabel='s [m]',
                 ylabel='$W_{⊥}$ [V/pC]',
@@ -253,10 +258,10 @@ class Plotter():
 
         #--- plot Zx⊥(w)
         if plot == 'real' or plot == 'all':
-            ax.plot(self.f*1e-9, ReZx, lw=1, color='green', ls = '--', label='Real Zx⊥(w)')
+            ax.plot(self.f*1e-9, ReZx, lw=1, color='green', ls = '--', label='Real Zx⊥(f)')
 
         if plot == 'imag' or plot == 'all':
-            ax.plot(self.f*1e-9, ImZx, lw=1, color='green' ,ls = ':', label='Imag Zx⊥(w)')
+            ax.plot(self.f*1e-9, ImZx, lw=1, color='green' ,ls = ':', label='Imag Zx⊥(f)')
 
         if plot == 'abs' or plot == 'all':
             ifxmax=np.argmax(Zx)
@@ -266,20 +271,20 @@ class Plotter():
 
         #--- plot Zy⊥(w)
         if plot == 'real' or plot == 'all':
-            ax.plot(self.f*1e-9, ReZy, lw=1, color='magenta', ls = '--', label='Real Zy⊥(w)')
+            ax.plot(self.f*1e-9, ReZy, lw=1, color='magenta', ls = '--', label='Real Zy⊥(f)')
 
         if plot == 'imag' or plot == 'all':
-            ax.plot(self.f*1e-9, ImZy, lw=1, color='magenta', ls = ':', label='Imag Zy⊥(w)')
+            ax.plot(self.f*1e-9, ImZy, lw=1, color='magenta', ls = ':', label='Imag Zy⊥(f)')
 
         if plot == 'abs' or plot == 'all':
             ifymax=np.argmax(Zy)
             ax.plot(self.f[ifymax]*1e-9, Zy[ifymax], marker='o', markersize=4.0, color='red')
             ax.annotate(str(round(self.f[ifymax]*1e-9,2))+ ' GHz', xy=(self.f[ifymax]*1e-9, Zy[ifymax]), xytext=(-50,-5), textcoords='offset points', color='magenta') 
-            ax.plot(self.f*1e-9, Zy, lw=1.2, color='magenta', label='Zy⊥(w)')
+            ax.plot(self.f*1e-9, Zy, lw=1.2, color='magenta', label='Zy⊥(f)')
 
-        ax.set(title='Transverse impedance Z⊥(w) \n (x,y) source = ('+str(round(self.xsource/1e-3,1))+','+str(round(self.ysource/1e-3,1))+') mm | test = ('+str(round(self.xtest/1e-3,1))+','+str(round(self.ytest/1e-3,1))+') mm',
+        ax.set(title='Transverse impedance Z⊥(f) \n (x,y) source = ('+str(round(self.xsource/1e-3,1))+','+str(round(self.ysource/1e-3,1))+') mm | test = ('+str(round(self.xtest/1e-3,1))+','+str(round(self.ytest/1e-3,1))+') mm',
                 xlabel='f [GHz]',
-                ylabel='Z⊥(w) [$\Omega$]',   
+                ylabel='Z⊥(f) [$\Omega$]',   
                 xlim=(0.,np.max(self.f)*1e-9)      
                 )
 

@@ -381,9 +381,9 @@ fig.savefig(path+'WPz.png', bbox_inches='tight')
 # Zz
 fig = plt.figure(2, figsize=(5,4), tight_layout=True)
 ax=fig.gca()
-#ax.plot(f*1e-9, np.real(Z), lw=1., c='r', label = 'Re Z(w) Wakis')
-#ax.plot(f*1e-9, np.imag(Z), lw=1., c='g', label = 'Im Z(w) Wakis')
 ax.plot(f*1e-9, abs(Z), lw=2., c='cornflowerblue', label = 'abs Z(w) Wakis')
+ax.plot(f*1e-9, np.real(Z), lw=1., c='r', label = 'Re Z(w) Wakis')
+ax.plot(f*1e-9, np.imag(Z), lw=1., c='g', label = 'Im Z(w) Wakis')
 
 if case == 'cst':
     d = read_cst_1d(path, 'Z.txt')
@@ -392,8 +392,7 @@ if case == 'cst':
 ax.set( title='Longitudinal impedance Z||(w)',
         xlabel='f [GHz]',
         ylabel='Z||(w) [$\Omega$]',   
-        xlim=(0.,2.0), 
-        ylim=(0, 4500)    
+        xlim=(0.,2.0)    
         ) #np.max(f)*1e-9)
 ax.legend(loc='upper right')
 ax.grid(True, color='gray', linestyle=':')
