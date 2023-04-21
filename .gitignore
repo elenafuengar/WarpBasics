@@ -2,6 +2,7 @@
 *.png
 *.jpeg
 *.csv
+*.svg
 *.h5
 *.txt
 *.cgmlog
