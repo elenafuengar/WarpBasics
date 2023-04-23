@@ -53,7 +53,7 @@ class Solver():
             setattr(self, key, val)
 
         # Read h5
-        if self.Ez_hf is None:
+        if self.Ez is None:
             self.read_Ez()
 
         if Ezt is not None:
@@ -87,14 +87,14 @@ class Solver():
 
         # Initialize 
         WP = np.zeros_like(s)
-        keys = list(self.Ez_hf.keys())
+        keys = list(self.Ez.keys())
 
         # Assembly Ez field
         if self.Ezt is None:
             self.log.info('Assembling Ez field...')
             Ezt = np.zeros((nz,nt))     #Assembly Ez field
             for n in range(nt):
-                Ez = self.Ez_hf[keys[n]]
+                Ez = self.Ez[keys[n]]
                 Ezt[:, n] = Ez[Ez.shape[0]//2+1,Ez.shape[1]//2+1,:]
 
             self.Ezt = Ezt
@@ -140,7 +140,7 @@ class Solver():
             setattr(self, key, val)
 
         # Read h5
-        if self.Ez_hf is None:
+        if self.Ez is None:
             self.read_Ez()
 
         # Init time
@@ -173,7 +173,7 @@ class Solver():
         i0, j0 = self.n_transverse_cells, self.n_transverse_cells    
         WP = np.zeros_like(s)
         WP_3d = np.zeros((i0*2+1,j0*2+1,len(s)))
-        keys = list(self.Ez_hf.keys())
+        keys = list(self.Ez.keys())
 
         self.log.info('Calculating longitudinal wake potential WP(s)')
         with tqdm(total=len(s)*(i0*2+1)*(j0*2+1)) as pbar:
@@ -182,7 +182,7 @@ class Solver():
 
                     # Assembly Ez field
                     for n in range(nt):
-                        Ez = self.Ez_hf[keys[n]]
+                        Ez = self.Ez[keys[n]]
                         Ezt[:, n] = Ez[Ez.shape[0]//2+1,Ez.shape[1]//2+1,:]
 
                     # integral of (Ez(xtest, ytest, z, t=(s+z)/c))dz
