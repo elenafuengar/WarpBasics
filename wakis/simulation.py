@@ -282,7 +282,7 @@ class WarpX():
 
         # time when the beam enters the domain
         nsigmas = 8.548921333333334 #factor used in CST studio
-        self.t_inj = nsigmas*self.sigmaz/self.c - (self.z_inj-em.zmin)/self.c #[s] injection time - Injection length 
+        self.t_inj = nsigmas*self.sigmaz/self.c - (self.z_inj-self.zmin)/self.c #[s] injection time - Injection length 
 
         # timestep size
         if CFL is not None: self.CFL=CFL
