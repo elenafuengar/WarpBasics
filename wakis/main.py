@@ -100,7 +100,7 @@ class Wakis(Bucket):
 
         #field
         self.Ez_file = Ez_file
-        self.Ez_hf = None
+        self.Ez = None
         self.Ezt = None #Ez(x_t, y_t, z, t)
         self.t = None
         self.xf, self.yf, self.zf = None, None, None    #field subdomain
@@ -268,10 +268,10 @@ class Wakis(Bucket):
             self.read_cst(filename=input_file)
 
         '''
-        if self.Ez_hf is None:
+        if self.Ez is None:
             try:
                 hf, dataset = self.read_Ez(filename=Ez_file)
-                self.Ez_hf = {'hf': hf, 'dataset': dataset}
+                self.Ez = {'hf': hf, 'dataset': dataset}
             except:
                 self.log.warning(f'{Ez_file} not found or could not be opened')
         '''

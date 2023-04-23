@@ -42,7 +42,7 @@ class Reader():
             setattr(self, key, val)
 
 
-    def read_cst_1d(self, file, path=None):
+    def read_cst_1d(self, file, path=None, keys=['X', 'Y']):
         '''
         Read CST plot data saved in ASCII .txt format
 
@@ -72,7 +72,7 @@ class Reader():
 
         X=np.array(X)
         Y=np.array(Y)
-        return {'X':X , 'Y': Y}
+        return {keys[0]:X , keys[1]: Y}
 
 
     def read_Ez(self, filename=None, return_=False):
@@ -88,7 +88,7 @@ class Reader():
         self.log.debug('Size of the file: ' + str(round((os.path.getsize(filename)/10**9),2))+' Gb')
 
         #Set attributes
-        self.Ez_hf = hf
+        self.Ez = hf
         self.Ez_file = filename
         if 'x' in hf.keys():
             self.xf = np.array(hf['x'])
@@ -251,10 +251,13 @@ class Reader():
         self.log.info(f'Finished scanning files - hdf5 file {filename} succesfully generated')
 
         #Update self
+        '''
         self.xf = x
         self.yf = y 
         self.zf = z
         self.t = np.array(t)
+        '''
+        self.read_Ez()
 
         for key, val in kwargs.items():
             setattr(self, key, val)
