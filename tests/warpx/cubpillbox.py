@@ -33,8 +33,8 @@ em.verbose = 1
 em.simulation_setup()
 
 # Test EB and Injection
-#em.testEB()
-em.testInj(nplots=4)
+em.testEB()
+#em.testInj(nplots=4)
 
 # Run simulation and save field in hdf5
 #em.field_monitor(nx=1, ny=1, mask_pml=True)

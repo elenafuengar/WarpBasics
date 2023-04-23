@@ -322,8 +322,10 @@ class WarpX():
         self.sim.initialize_inputs()
 
         if self.verbose:
-            self.log.info(f'Timesteps to simulate = {self.max_steps} with timestep dt = {self.dt} s')
             self.log.info(f'Wake length = {self.wakelength} m')
+            self.log.info(f'Timesteps to simulate = {self.max_steps}')
+            self.log.info(f'Simulation timestep dt = {self.dt} s')
+
 
 
     def set_beam(self, **kwargs):
