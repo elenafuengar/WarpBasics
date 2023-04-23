@@ -149,7 +149,8 @@ class Solver():
 
         else:
             ti = 8.548921333333334*self.sigmaz/self.c  #injection time as in CST
-
+            self.ti = ti 
+            
         # Aux variables
         nt = len(self.t)
         dt = self.t[2]-self.t[1]
