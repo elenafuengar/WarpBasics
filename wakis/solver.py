@@ -150,7 +150,7 @@ class Solver():
         else:
             ti = 8.548921333333334*self.sigmaz/self.c  #injection time as in CST
             self.ti = ti 
-            
+
         # Aux variables
         nt = len(self.t)
         dt = self.t[2]-self.t[1]
@@ -168,13 +168,14 @@ class Solver():
         s = np.arange(-self.ti*self.c, WL, dt*self.c) 
 
         self.log.debug('Max simulated time = '+str(round(self.t[-1]*1.0e9,4))+' ns')
-        self.log.debug('Wakelength = '+str(round(WL/self.unit_m,0))+' mm')
+        self.log.debug('Wakelength = '+str(round(WL,4))+' m')
 
         #field subvolume in No.cells for x, y
         i0, j0 = self.n_transverse_cells, self.n_transverse_cells    
         WP = np.zeros_like(s)
         WP_3d = np.zeros((i0*2+1,j0*2+1,len(s)))
         keys = list(self.Ez.keys())
+        Ezt = np.zeros((nz,nt))     #Assembly Ez field
 
         self.log.info('Calculating longitudinal wake potential WP(s)')
         with tqdm(total=len(s)*(i0*2+1)*(j0*2+1)) as pbar:
@@ -184,7 +185,7 @@ class Solver():
                     # Assembly Ez field
                     for n in range(nt):
                         Ez = self.Ez[keys[n]]
-                        Ezt[:, n] = Ez[Ez.shape[0]//2+1,Ez.shape[1]//2+1,:]
+                        Ezt[:, n] = Ez[Ez.shape[0]//2+i, Ez.shape[1]//2+j,:]
 
                     # integral of (Ez(xtest, ytest, z, t=(s+z)/c))dz
                     for n in range(len(s)):    
