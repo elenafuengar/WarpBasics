@@ -10,17 +10,17 @@ import numpy as np
 import wakis
 
 em = wakis.WarpX()
-unit = 1.0e-3
+unit = 1.0e-2
 
 # Beam
 em.q = 1e-9
-em.sigmaz = 18*unit 				#for f_max ~2 GHz
+em.sigmaz = 5*unit 				#for f_max ~2 GHz
 em.xsource, em.ysource = 0.0, 0.0
 em.xtest, em.ytest = 0.0, 0.0
 
 # Geometry
 em.stl_file = 'cubpillbox.stl'
-em.stl_scale = 1e-3
+em.stl_scale = 1e-2
 
 # Mesh
 em.nx = 32

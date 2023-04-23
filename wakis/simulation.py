@@ -549,7 +549,6 @@ class WarpX():
             self.log.warning(f'Extension ".{ext}" not supported, choose one of the following: {exts}')
 
     def testEB(self, n=1, dim=2, save=False, ext='png'):
-        print('hi')
         self.sim.step(n)
 
         label = ['x', 'y', 'z']
@@ -581,8 +580,8 @@ class WarpX():
 
     def testInj(self, nplots=5, save=False, ext='png', return_=False):
 
-        steps0 = int(self.t_inj/self.dt + 2*self.sigmaz/(self.beam_beta*self.c)/self.dt)
-        steps1 = int((self.zmax-self.zmin + 2*self.sigmaz)/(self.beam_beta*self.c)/self.dt/nplots)
+        steps0 = int(self.t_inj/self.dt)
+        steps1 = int((self.zmax-self.zmin)/(self.beam_beta*self.c)/self.dt/nplots)
 
         self.sim.step(steps0)
         Ez = np.array(fields.EzWrapper().get_fabs(0,2,include_ghosts=False)[0])
