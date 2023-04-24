@@ -98,6 +98,8 @@ class Reader():
             self.zf = np.array(hf['z'])
         if 't' in hf.keys():
             self.t = np.array(hf['t'])
+        if 'ti' in hf.keys():
+            self.ti = np.array(hf['ti'])
 
         if return_:
             return hf
