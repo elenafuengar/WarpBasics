@@ -72,11 +72,12 @@ class Solver():
             self.ti = ti
 
         if self.zf is None: self.zf = self.z
+        elif self.z is None: self.z = self.zf
 
         nz = len(self.zf)
         dz = self.zf[2]-self.zf[1]
-        zmax = np.max(self.zf)
-        zmin = np.min(self.zf)               
+        zmax = np.max(self.z)
+        zmin = np.min(self.z)               
 
         # Set Wake length and s
         WL = nt*dt*self.c - (zmax-zmin) - ti*self.c
@@ -202,6 +203,7 @@ class Solver():
         self.s = s
         self.WP = WP_3d[i0,j0,:]
         self.WP_3d = WP_3d
+        self.wakelength = WL
 
     def calc_trans_WP(self, **kwargs):
         '''
