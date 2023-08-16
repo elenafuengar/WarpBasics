@@ -33,6 +33,40 @@ try:
 except:
     print('pywarpx not imported')
 
+# time profile of a gaussian beam
+def time_prof(t):
+    val = 0
+    global _sigmaz, _N, _b_spac, _t_inj
+
+    sigmat = sigmaz/picmi.constants.c
+    dt = libwarpx.libwarpx_so.warpx_getdt(0)
+    for i in range(0,n_bunches):
+        val += _N*1./np.sqrt(2*np.pi*sigmat*sigmat)*np.exp(-(t-i*_b_spac-_t_inj)*(t-i*_b_spac-_t_inj)/(2*sigmat*sigmat))*dt
+    return val
+
+# auxiliary function for injection
+def nonlinearsource():
+    global _beam_beta, _beam_gamma, _bunch_w
+
+    t = libwarpx.libwarpx_so.warpx_gett_new(0)
+    NP = int(time_prof(t))
+    if NP>0:
+        x = np.random.normal(bunch_centroid_position[0],bunch_rms_size[0],NP)
+        y = np.random.normal(bunch_centroid_position[1],bunch_rms_size[1],NP)
+        z = bunch_centroid_position[2]
+
+        vx = np.zeros(NP)
+        vy = np.zeros(NP)
+        vz = np.ones(NP)*picmi.constants.c*_beam_beta
+        
+        ux = np.zeros(NP)
+        uy = np.zeros(NP)
+        uz = _beam_beta*_beam_gamma*picmi.constants.c
+
+        libwarpx.add_particles(
+            species_name='beam', x=x, y=y, z=z, ux=ux, uy=uy, uz=uz, w=_bunch_w*np.ones(NP),
+        )
+
 class WarpX():
     '''Class to run optimized WarpX simulations
     '''
@@ -48,9 +82,9 @@ class WarpX():
         self.log = get_logger(level=log_level) #verbose level: 1: DEBUG, 2: INFO, 3:WARNING, 0:DEFAULT (INFO)
 
         # Constants (form SciPy.constants)
-        self.c = 299792458.0
-        self.e = 1.602176634e-19
-        self.m_p = 1.67262192369e-27
+        self.c = picmi.constants.c #299792458.0
+        self.e = picmi.constants.q_e #1.602176634e-19
+        self.m_p = picmi.constants.m_p #1.67262192369e-27
 
         # geometry
         self.stl_file = stl_file
@@ -322,17 +356,15 @@ class WarpX():
         self.sim.initialize_inputs()
 
         if self.verbose:
+            self.log.info(f'Timesteps to simulate = {self.max_steps} with timestep dt = {self.dt} s')
             self.log.info(f'Wake length = {self.wakelength} m')
-            self.log.info(f'Timesteps to simulate = {self.max_steps}')
-            self.log.info(f'Simulation timestep dt = {self.dt} s')
-
 
 
     def set_beam(self, **kwargs):
 
         # offset of the bunch centroid
         self.bunch_physical_particles = int(self.bunch_charge/self.e)
-        bunch_w = self.bunch_physical_particles/self.bunch_macro_particles
+        self.bunch_w = self.bunch_physical_particles/self.bunch_macro_particles
 
         # Define the beam offset
         self.ixsource=int((self.xsource-self.x[0])/self.dx)
@@ -347,36 +379,11 @@ class WarpX():
         for key, val in kwargs.items():
             setattr(self, key, val)
 
-        # time profile of a gaussian beam
-        def time_prof(t):
-            val = 0
-            sigmat = self.sigmaz/self.c
-            dt = libwarpx.libwarpx_so.warpx_getdt(0)
-            for i in range(0,self.n_bunches):
-                val += self.bunch_macro_particles*1./np.sqrt(2*np.pi*sigmat*sigmat)*np.exp(-(t-i*self.b_spac-self.t_inj)*(t-i*self.b_spac-self.t_inj)/(2*sigmat*sigmat))*dt
-            return val
+        _sigmaz, _N, _b_spac, _t_inj = self.sigmaz, self.bunch_macro_particles, self.b_spac, self.t_inj
+        global _sigmaz, _N, _b_spac, _t_inj
 
-        # auxiliary function for injection
-        def nonlinearsource():
-            t = libwarpx.libwarpx_so.warpx_gett_new(0)
-            NP = int(time_prof(t))
-            if NP>0:
-                x = np.random.normal(bunch_centroid_position[0],bunch_rms_size[0],NP)
-                y = np.random.normal(bunch_centroid_position[1],bunch_rms_size[1],NP)
-                z = bunch_centroid_position[2]
-
-                vx = np.zeros(NP)
-                vy = np.zeros(NP)
-                vz = np.ones(NP)*self.c*self.beam_beta
-                
-                ux = np.zeros(NP)
-                uy = np.zeros(NP)
-                uz = self.beam_beta*self.beam_gamma*self.c
-
-                libwarpx.add_particles(
-                    species_name='beam', x=x, y=y, z=z, ux=ux, uy=uy, uz=uz, w=bunch_w*np.ones(NP),
-                )
-
+        _beam_beta, _beam_gamma, _bunch_w = self.beam_beta, self.beam_gamma, self.bunch_w
+        global _beam_beta, _beam_gamma, _bunch_w
 
         # install injection
         callbacks.installparticleinjection(nonlinearsource)
@@ -549,6 +556,7 @@ class WarpX():
             self.log.warning(f'Extension ".{ext}" not supported, choose one of the following: {exts}')
 
     def testEB(self, n=1, dim=2, save=False, ext='png'):
+        print('hi')
         self.sim.step(n)
 
         label = ['x', 'y', 'z']
@@ -580,8 +588,8 @@ class WarpX():
 
     def testInj(self, nplots=5, save=False, ext='png', return_=False):
 
-        steps0 = int(self.t_inj/self.dt)
-        steps1 = int((self.zmax-self.zmin)/(self.beam_beta*self.c)/self.dt/nplots)
+        steps0 = int(self.t_inj/self.dt + 2*self.sigmaz/(self.beam_beta*self.c)/self.dt)
+        steps1 = int((self.zmax-self.zmin + 2*self.sigmaz)/(self.beam_beta*self.c)/self.dt/nplots)
 
         self.sim.step(steps0)
         Ez = np.array(fields.EzWrapper().get_fabs(0,2,include_ghosts=False)[0])

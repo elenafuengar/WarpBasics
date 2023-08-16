@@ -53,7 +53,7 @@ class Solver():
             setattr(self, key, val)
 
         # Read h5
-        if self.Ez is None:
+        if self.Ez_hf is None:
             self.read_Ez()
 
         if Ezt is not None:
@@ -72,12 +72,11 @@ class Solver():
             self.ti = ti
 
         if self.zf is None: self.zf = self.z
-        elif self.z is None: self.z = self.zf
 
         nz = len(self.zf)
         dz = self.zf[2]-self.zf[1]
-        zmax = np.max(self.z)
-        zmin = np.min(self.z)               
+        zmax = np.max(self.zf)
+        zmin = np.min(self.zf)               
 
         # Set Wake length and s
         WL = nt*dt*self.c - (zmax-zmin) - ti*self.c
@@ -88,14 +87,14 @@ class Solver():
 
         # Initialize 
         WP = np.zeros_like(s)
-        keys = list(self.Ez.keys())
+        keys = list(self.Ez_hf.keys())
 
         # Assembly Ez field
         if self.Ezt is None:
             self.log.info('Assembling Ez field...')
             Ezt = np.zeros((nz,nt))     #Assembly Ez field
             for n in range(nt):
-                Ez = self.Ez[keys[n]]
+                Ez = self.Ez_hf[keys[n]]
                 Ezt[:, n] = Ez[Ez.shape[0]//2+1,Ez.shape[1]//2+1,:]
 
             self.Ezt = Ezt
@@ -141,7 +140,7 @@ class Solver():
             setattr(self, key, val)
 
         # Read h5
-        if self.Ez is None:
+        if self.Ez_hf is None:
             self.read_Ez()
 
         # Init time
@@ -150,7 +149,6 @@ class Solver():
 
         else:
             ti = 8.548921333333334*self.sigmaz/self.c  #injection time as in CST
-            self.ti = ti 
 
         # Aux variables
         nt = len(self.t)
@@ -164,19 +162,17 @@ class Solver():
         zmin = min(self.zf)               
 
         # Set Wake length and s
-        # Set Wake length and s
         WL = nt*dt*self.c - (zmax-zmin) - ti*self.c
         s = np.arange(-self.ti*self.c, WL, dt*self.c) 
 
         self.log.debug('Max simulated time = '+str(round(self.t[-1]*1.0e9,4))+' ns')
-        self.log.debug('Wakelength = '+str(round(WL,4))+' m')
+        self.log.debug('Wakelength = '+str(round(WL/self.unit_m,0))+' mm')
 
         #field subvolume in No.cells for x, y
         i0, j0 = self.n_transverse_cells, self.n_transverse_cells    
         WP = np.zeros_like(s)
         WP_3d = np.zeros((i0*2+1,j0*2+1,len(s)))
-        keys = list(self.Ez.keys())
-        Ezt = np.zeros((nz,nt))     #Assembly Ez field
+        keys = list(self.Ez_hf.keys())
 
         self.log.info('Calculating longitudinal wake potential WP(s)')
         with tqdm(total=len(s)*(i0*2+1)*(j0*2+1)) as pbar:
@@ -185,8 +181,8 @@ class Solver():
 
                     # Assembly Ez field
                     for n in range(nt):
-                        Ez = self.Ez[keys[n]]
-                        Ezt[:, n] = Ez[Ez.shape[0]//2+i, Ez.shape[1]//2+j,:]
+                        Ez = self.Ez_hf[keys[n]]
+                        Ezt[:, n] = Ez[Ez.shape[0]//2+1,Ez.shape[1]//2+1,:]
 
                     # integral of (Ez(xtest, ytest, z, t=(s+z)/c))dz
                     for n in range(len(s)):    
@@ -203,7 +199,6 @@ class Solver():
         self.s = s
         self.WP = WP_3d[i0,j0,:]
         self.WP_3d = WP_3d
-        self.wakelength = WL
 
     def calc_trans_WP(self, **kwargs):
         '''
@@ -267,7 +262,7 @@ class Solver():
         self.WPx = WPx
         self.WPy = WPy
 
-    def calc_long_Z(self, **kwargs):
+    def calc_long_Z(self, samples=1001, **kwargs):
         '''
         Obtains the longitudinal impedance from the longitudinal 
         wake potential and the beam charge distribution using a 
@@ -301,16 +296,16 @@ class Solver():
         self.log.info('Obtaining longitudinal impedance Z...')
 
         # setup charge distribution in s
-        if self.lambdas is None and self.chargedist is not None:
+        if self.lambdas is None and chargedist is not None:
             self.calc_lambdas()
-        elif self.lambdas is None and self.chargedist is None:
+        elif self.lambdas is None and chargedist is None:
             self.calc_lambdas_analytic()
             self.log.warning('Using analytic charge distribution λ(s) since no data was provided')
 
         # Set up the DFT computation
         ds = np.mean(self.s[1:]-self.s[:-1])
-        fmax=1*self.c/self.sigmaz/3   #max frequency of interest
-        N=int((self.c/ds)//fmax*1001) #to obtain a 1000 sample single-sided DFT
+        fmax=1*self.c/self.sigmaz/3   #max frequency of interest #TODO: use pi instead of 3
+        N=int((self.c/ds)//fmax*samples) #to obtain a 1000 sample single-sided DFT
 
         # Obtain DFTs
         lambdafft = np.fft.fft(self.lambdas*self.c, n=N)
@@ -327,7 +322,7 @@ class Solver():
         self.Z = - WPf / lambdaf
         self.lambdaf = lambdaf
 
-    def calc_trans_Z(self):
+    def calc_trans_Z(self, samples=1001):
         '''
         Obtains the transverse impedance from the transverse 
         wake potential and the beam charge distribution using a 
@@ -340,7 +335,7 @@ class Solver():
         # Set up the DFT computation
         ds = self.s[2]-self.s[1]
         fmax=1*self.c/self.sigmaz/3
-        N=int((self.c/ds)//fmax*1001) #to obtain a 1000 sample single-sided DFT
+        N=int((self.c/ds)//fmax*samples) #to obtain a 1000 sample single-sided DFT
 
         # Obtain DFTs
 
