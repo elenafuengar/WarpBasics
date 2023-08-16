@@ -296,9 +296,9 @@ class Solver():
         self.log.info('Obtaining longitudinal impedance Z...')
 
         # setup charge distribution in s
-        if self.lambdas is None and chargedist is not None:
+        if self.lambdas is None and self.chargedist is not None:
             self.calc_lambdas()
-        elif self.lambdas is None and chargedist is None:
+        elif self.lambdas is None and self.chargedist is None:
             self.calc_lambdas_analytic()
             self.log.warning('Using analytic charge distribution λ(s) since no data was provided')
 

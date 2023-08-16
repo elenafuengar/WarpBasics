@@ -1,5 +1,5 @@
 from setuptools import setup
-from wakis import __version__
+#from .wakis import __version__
 
 ####################################
 # Add long description from README #
@@ -14,7 +14,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 #########
 setup(
     name="wakis",
-    version=__version__,
+    version="0.3.4",
     description="Wakis obtains Wake potential and Impedance from pre-computed fields",
     author="Elena de la Fuente Garcia",
     author_email="elena.de.la.fuente.garcia@cern.ch",
